@@ -568,10 +568,16 @@ func (e *ACPInferenceExecutor) Probe(ctx context.Context, req *ProbeRequest) (*P
 		failureCode := managedRuntimeProbeFailureCode(cfg.Command, stderrTail)
 		failureMessage := withUpstreamHint(err, cfg.ProviderGatewayAuth, stderrTail)
 		if req.ProfileContext {
+			managedFailureCode := failureCode
 			failureMessage, failureCode = sanitizeProfileProbeFailure(err, stderrTail)
+			// Sanitization replaces the client-visible code; the log keeps the
+			// classified managed-runtime code and the scrubbed tail so the
+			// operator sees the real cause the response cannot carry.
 			e.logger.Error("ACP profile probe failed",
 				zap.String("agent_id", req.AgentID),
-				zap.String("failure_code", string(failureCode)))
+				zap.String("failure_code", string(failureCode)),
+				zap.String("managed_failure_code", string(managedFailureCode)),
+				zap.String("stderr", scrubTmpPaths(stderrTail)))
 		} else {
 			e.logger.Error("ACP probe failed",
 				zap.String("agent_id", req.AgentID),

@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestProfileProbeForwardsEnvironmentFlagsAndPrefixToChild(t *testing.T) {
@@ -85,5 +87,68 @@ func writeProfileProbeFixture(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
 		t.Fatalf("write probe fixture %s: %v", path, err)
+	}
+}
+
+// A sanitized profile-probe response must not also sanitize the log beyond
+// usefulness: the operator still needs the real child-side cause and the
+// managed-runtime classification the client payload cannot carry.
+func TestProfileProbeFailureLogCarriesScrubbedStderr(t *testing.T) {
+	if runtime.GOOS == windowsGOOS {
+		t.Skip("fixture uses a POSIX shell script")
+	}
+
+	binDir := t.TempDir()
+	writeProfileProbeFixture(t, filepath.Join(binDir, "npx"), `#!/bin/sh
+printf '%s\n' 'npm error code ETARGET' 'npm error notarget No matching version found for @scope/managed-acp@1.2.3.' 'cache location: /tmp/npm-cache-9f2c' >&2
+exit 1
+`)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	core, observed := observer.New(zapcore.DebugLevel)
+	executor := NewACPInferenceExecutor(zap.New(core))
+	response, err := executor.Probe(context.Background(), &ProbeRequest{
+		AgentID:        "managed-acp",
+		ProfileContext: true,
+		InferenceConfig: &InferenceConfigDTO{
+			Command: []string{"npx", "--yes", "--prefer-offline", "--prefix", "~/.kandev/managed-npm-runtime", "@scope/managed-acp@1.2.3"},
+			WorkDir: t.TempDir(),
+			Env:     map[string]string{"HOME": t.TempDir()},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Probe returned error: %v", err)
+	}
+	if response.Success {
+		t.Fatal("Probe unexpectedly succeeded")
+	}
+	if response.Error != "profile capability probe failed" {
+		t.Fatalf("client error = %q, want the sanitized message", response.Error)
+	}
+	if response.FailureCode != "" {
+		t.Fatalf("client failure code = %q, want the sanitized empty code", response.FailureCode)
+	}
+
+	entries := observed.FilterMessage("ACP profile probe failed").All()
+	if len(entries) != 1 {
+		t.Fatalf("profile probe failure entries = %d, want 1: %#v", len(entries), observed.All())
+	}
+	entry := entries[0]
+	if entry.Level != zapcore.ErrorLevel {
+		t.Fatalf("profile probe failure level = %v, want ERROR", entry.Level)
+	}
+	fields := make(map[string]string)
+	for _, field := range entry.Context {
+		fields[field.Key] = field.String
+	}
+	if stderr := fields["stderr"]; !strings.Contains(stderr, "npm error code ETARGET") ||
+		strings.Contains(stderr, "/tmp/npm-cache-9f2c") || !strings.Contains(stderr, "<path>") {
+		t.Fatalf("logged stderr = %q, want the npm cause with the tmp path scrubbed", stderr)
+	}
+	if code := fields["managed_failure_code"]; code != string(ProbeFailureManagedRuntimeNPMResolution) {
+		t.Fatalf("managed failure code = %q, want %q", code, ProbeFailureManagedRuntimeNPMResolution)
+	}
+	if code := fields["failure_code"]; code != "" {
+		t.Fatalf("client-visible failure code = %q, want the sanitized empty code", code)
 	}
 }
