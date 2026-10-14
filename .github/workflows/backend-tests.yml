@@ -294,7 +294,7 @@ jobs:
         run: golangci-lint run ./... --new-from-rev="${BASE_SHA}" --timeout=10m
 
   test_shards:
-    name: Backend Tests (${{ matrix.shard }}/2)
+    name: Backend Tests (${{ matrix.shard }}/4)
     needs: changes
     if: needs.changes.outputs.run == 'true'
     # Checkout receives the short-lived job token. Keep this credential-bearing
@@ -308,6 +308,10 @@ jobs:
             index: 0
           - shard: 2
             index: 1
+          - shard: 3
+            index: 2
+          - shard: 4
+            index: 3
     # Pre-baked image bundles Go and jq, so test shards can start immediately
     # without repeating tool installation.
     container: ghcr.io/kdlbs/kandev-ci:build-latest
@@ -360,17 +364,17 @@ jobs:
             # package is added or removed.
             checksum="$(cksum <<<"${package}")"
             checksum="${checksum%% *}"
-            if (( checksum % 2 == SHARD_INDEX )); then
+            if (( checksum % 4 == SHARD_INDEX )); then
               shard_packages+=("${package}")
             fi
           done
 
           if (( ${#shard_packages[@]} == 0 )); then
-            echo "Shard ${SHARD_NUMBER}/2 selected no packages"
+            echo "Shard ${SHARD_NUMBER}/4 selected no packages"
             exit 1
           fi
 
-          echo "Running ${#shard_packages[@]} packages in shard ${SHARD_NUMBER}/2"
+          echo "Running ${#shard_packages[@]} packages in shard ${SHARD_NUMBER}/4"
           # Keep complete JSON for reports/artifacts while limiting live output
           # to compiler/process lines and package-level pass/fail summaries.
           go test \
@@ -927,8 +931,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {suite: process, cohort: 1, label: process 1/2}
-          - {suite: process, cohort: 2, label: process 2/2}
+          - {suite: process, cohort: 1, label: process 1/4}
+          - {suite: process, cohort: 2, label: process 2/4}
+          - {suite: process, cohort: 3, label: process 3/4}
+          - {suite: process, cohort: 4, label: process 4/4}
           - {suite: native, label: native}
           - {suite: compile, label: compile}
           - {suite: persistence, label: persistence}
@@ -960,6 +966,26 @@ jobs:
           go-version-file: apps/backend/go.mod
           cache-dependency-path: apps/backend/go.sum
 
+      - name: Compile Windows settings test packages
+        if: matrix.suite == 'settings'
+        timeout-minutes: 10
+        env:
+          GOMAXPROCS: '2'
+          GOMEMLIMIT: 2GiB
+        run: >-
+          go test -trimpath -tags fts5 -race -p=2 -run '^$' -count=1 -timeout=30s
+          ./internal/agent/settings/controller ./internal/agent/settings/handlers ./internal/agent/settings/store ./internal/backendapp ./internal/mcp/handlers ./internal/mcp/server ./internal/workflow/controller ./internal/workflow/handlers ./internal/workflow/repository
+
+      - name: Compile Windows persistence test packages
+        if: matrix.suite == 'persistence'
+        timeout-minutes: 10
+        env:
+          GOMAXPROCS: '2'
+          GOMEMLIMIT: 2GiB
+        run: >-
+          go test -trimpath -tags fts5 -race -p=2 -run '^$' -count=1 -timeout=30s
+          ./internal/backendapp ./internal/orchestrator/executor ./internal/persistence/storeconformance ./internal/task/handlers ./internal/task/repository/sqlite ./internal/task/service
+
       - name: Test Windows copy-file glob tokenization
         if: matrix.suite == 'native'
         run: >-
@@ -985,7 +1011,7 @@ jobs:
         if: matrix.suite == 'process'
         env:
           WINDOWS_PROCESS_COHORT: ${{ matrix.cohort }}
-        run: go run ./cmd/windows-process-tests -cohort $env:WINDOWS_PROCESS_COHORT
+        run: go run ./cmd/windows-process-tests -cohorts 4 -cohort $env:WINDOWS_PROCESS_COHORT
 
       # Scope to packages with non-trivial Windows-specific code paths.
       # Tests that genuinely cannot run on Windows (Unix sockets, POSIX

@@ -118,3 +118,39 @@ balances observed work while retaining future sort keys in memory-1.
 Both the historical-profile and no-profile native E2E plans were generated and
 validated. Their exact unit IDs, file hashes and test counts match: 1,336 normal
 units/3,808 tests across 28 jobs and 46 container units/153 tests across six jobs.
+
+### Measured E2E build-path follow-up
+
+Candidate build job 115913753173 spent 320 seconds in backend/web compilation.
+The three non-host agentctl targets occupied 120 seconds (14:38:06–14:40:06
+UTC), before the Linux application could build. Native agentctl took 24 seconds,
+Linux/amd64 helper 20 seconds, application 111 seconds, and delivery fixture
+43 seconds. A subsequent remote-helper invocation linked those same targets
+again. Backend artifact upload took 20 seconds and included unused non-host
+binaries. The entire job took approximately eight minutes.
+
+Move Linux/arm64 and both Darwin helper builds plus diagnostic CLI/winjob
+compilation into a separate hosted job that starts after change detection and
+remains required by the final E2E gate. The Linux browser build retains kandev,
+native agentctl/mock-agent, Linux/amd64 remote helpers, the delivery fixture and
+plugin artifacts. Invoke existing Make targets once; do not change Makefile or
+release semantics. Compact-runtime fixtures consume the Linux helper to create
+their canonical test manifest; SSH/Docker/Kind targets are Linux/amd64. Preserve
+all prior platform compilation in the parallel job, without making browser
+shards wait for unrelated binary targets.
+
+Verify the exact target union against the previous make expansion, mandatory
+required-gate outcomes for the new job, protected hosted placement, actual
+parallel child joins/failures and full hosted E2E results. Do not attribute the
+120-second estimate to a delivered full-pipeline improvement before measurement.
+
+### Ordinary Go package balance
+
+After removing the repository package, ordinary shard 1 passed in 8m04s, but
+shard 2 was still executing after the fifteen-minute full-workflow budget. Its
+preceding run had process 319.7s, ACP transport 197.9s, lifecycle 197.5s,
+orchestrator 190.4s and backendapp 141.9s on that same shard. Use four stable
+hash buckets for the remaining package inventory, still excluding only the
+repository package owned by its required matrix. Preserve all commands, race
+and coverage flags, per-package deadlines and artifact/report handling. Verify
+the four-way union from native go-list output, including newly added packages.

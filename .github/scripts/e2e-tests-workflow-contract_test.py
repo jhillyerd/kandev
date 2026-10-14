@@ -58,17 +58,18 @@ class E2EWorkflowContractTest(unittest.TestCase):
         source = E2E_WORKFLOW.read_text().split("      - name: Build backend and web\n", 1)[1]
         script = textwrap.dedent(source.split("        run: |\n", 1)[1].split("\n      #", 1)[0])
         # Exercise the actual shell step with independent fake make children.
-        for failing in ("", "build-backend", "build-web-e2e"):
+        for failing in ("", "build-kandev", "build-web-e2e"):
             with self.subTest(failing=failing), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 make = root / "make"
                 make.write_text("""#!/usr/bin/env bash
 set -eu
+if [[ "$1" == -C ]]; then shift 2; fi
 target=$1
-if [[ "$target" == build-backend || "$target" == build-web-e2e ]]; then
+if [[ "$target" == build-kandev || "$target" == build-web-e2e ]]; then
   touch "$target.started"
-  other=build-backend
-  if [[ "$target" == build-backend ]]; then other=build-web-e2e; fi
+  other=build-kandev
+  if [[ "$target" == build-kandev ]]; then other=build-web-e2e; fi
   for ((i=0;i<200;i++)); do
     [[ -f "$other.started" ]] && break
     sleep 0.01
@@ -77,7 +78,7 @@ if [[ "$target" == build-backend || "$target" == build-web-e2e ]]; then
   touch "$target.joined"
   [[ "$FAIL_TARGET" != "$target" ]] || exit 7
 else
-  [[ -f build-backend.joined && -f build-web-e2e.joined ]] || exit 92
+  [[ -f build-kandev.joined && -f build-web-e2e.joined ]] || exit 92
   touch fixture.built
 fi
 """)
@@ -87,9 +88,37 @@ fi
                                              "FAIL_TARGET": failing, "GITHUB_SHA": "test-source"},
                                         capture_output=True, text=True)
                 self.assertEqual(result.returncode == 0, not failing, result.stderr)
-                self.assertTrue((root / "build-backend.joined").exists())
+                self.assertTrue((root / "build-kandev.joined").exists())
                 self.assertTrue((root / "build-web-e2e.joined").exists())
                 self.assertEqual((root / "fixture.built").exists(), not failing)
+
+    def test_browser_build_and_parallel_compile_preserve_the_original_binary_union(self) -> None:
+        workflow = E2E_WORKFLOW.read_text()
+        helpers = job_block(workflow, "helper_compile", "build")
+        build = job_block(workflow, "build", "e2e")
+        self.assertIn("needs: changes", helpers)
+        self.assertIn("runs-on: ubuntu-latest", helpers)
+        self.assertIn("if: needs.changes.outputs.run == 'true'", helpers)
+        self.assertNotIn("continue-on-error", helpers)
+        self.assertNotIn("helper_compile", job_block(workflow, "e2e", "playwright_image"))
+        host = ["build-kandev", "build-agentctl", "build-agentctl-linux", "build-mock-agent"]
+        other = ["build-agentctl-linux-arm64", "build-agentctl-darwin-arm64",
+                 "build-agentctl-darwin-amd64", "build-acpdbg", "build-codexdbg", "build-winjob"]
+        self.assertIn("make -C apps/backend " + " ".join(host) + " &", build)
+        self.assertIn("make -C apps/backend " + " ".join(other), helpers)
+        self.assertIn("run: make -C apps/backend build-mock-agent-linux", build)
+        self.assertNotIn("make build-backend", build)
+        self.assertIn("make build-e2e-delivery-fixture", build)
+        def outputs(targets):
+            result = subprocess.run(["make", "-n", "-C", str(REPO_ROOT / "apps/backend"), *targets],
+                                    capture_output=True, text=True, check=True)
+            return set(re.findall(r"-o (bin/[^ ]+)", result.stdout))
+        self.assertEqual(outputs(host + other + ["build-mock-agent-linux", "build-e2e-delivery-fixture"]),
+                         outputs(["build", "build-mock-agent-linux", "build-e2e-delivery-fixture"]))
+        report = workflow.split("  e2e-report:\n", 1)[1]
+        self.assertIn("needs: [changes, helper_compile, build,", report)
+        self.assertIn("HELPER_COMPILE_RESULT: ${{ needs.helper_compile.result }}", report)
+        self.assertIn('"helper_compile:${HELPER_COMPILE_RESULT}"', report)
 
     def run_image_digest_resolver(
         self,
@@ -243,7 +272,7 @@ cat "${FAKE_DOCKER_MANIFEST}"
         ):
             self.assertNotIn(forbidden, desktop_job)
 
-        changes_job = job_block(workflow, "changes", "build")
+        changes_job = job_block(workflow, "changes", "helper_compile")
         for pattern in (
             ".github/docker/ci-base/**",
             ".github/scripts/resolve-image-digest.sh",
@@ -281,7 +310,7 @@ cat "${FAKE_DOCKER_MANIFEST}"
     def test_external_runner_tiers_are_toggleable_for_eligible_jobs(self) -> None:
         workflow = E2E_WORKFLOW.read_text(encoding="utf-8")
 
-        changes = job_block(workflow, "changes", "build")
+        changes = job_block(workflow, "changes", "helper_compile")
         self.assertIn("runs-on: ubuntu-latest", changes)
         self.assertNotIn("    needs:", changes)
         self.assertNotIn("  e2e-gate:\n", workflow)

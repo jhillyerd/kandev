@@ -47,25 +47,32 @@ skips and absent reports. Keep the public check name unchanged.
 
 Partition the native Windows command sequence into compilation, native platform,
 persistence and settings groups. The initial process cohort stayed unchanged and measured 19m08s in hosted
-job 115897903616. Execute its existing two native cohorts on separate Windows
-jobs. The native runner gains a bounded `-cohort=1|2` selector; omitted/zero
-retains its existing local two-process mode. Enumeration and exact per-cohort
-completion validation remain mandatory, and both hosted results join the backend
+job 115897903616. The two-job candidate still took 16m14s at its slowest. Partition the same native
+inventory into four hosted cohorts. The native runner accepts `-cohorts=2|4`
+and a bounded `-cohort` index; omitted/zero selection retains all cohorts and
+the default count stays two for local compatibility. Enumeration and exact per-cohort
+completion validation remain mandatory, and all hosted results join the backend
 gate. Reports record the selected cohort so a single-job report cannot claim
-full package coverage. Reject other cohort numbers before starting work.
+full package coverage. Reject unsupported counts and out-of-range cohort numbers before starting work.
 Move whole existing steps, retaining their commands and timeouts;
 do not derive coverage from source-name guesses. Every prior native step has
 exactly one owner. All groups remain on windows-latest and join the existing
 backend aggregate. Targeted native compilation uses GOMAXPROCS=2 and a 2 GiB
 Go soft memory limit on the existing hosted Windows runner, so cold race builds
 do not thrash under the former 512 MiB heap. Test and step alarms stay intact.
+Persistence/settings groups first compile their exact package union with the
+same race/fts5 flags and a zero-match selector. This bounded warmup permits two
+compiler packages; it runs no selected assertions and does not change the
+subsequent test/step deadlines. Full-job measurement includes compilation.
 Fail-fast stays false. This isolates compilation and groups
 related tagged persistence checks without changing test selections.
 
 ## Subsequent bounded candidates
 
 The first backend candidate isolates `internal/task/repository/sqlite` from the
-two existing package-hash jobs and partitions it into three hosted jobs. The
+ordinary package-hash jobs and partitions it into three hosted jobs. The remaining
+package inventory uses four stable hash buckets after the second original bucket
+exceeded the full budget; preserve native enumeration and exact union. The
 explicit PostgreSQL 16 catalog retains one ordinary-packages job plus the same
 three repository cohorts. Other packages keep their existing commands.
 
@@ -107,7 +114,12 @@ process for the unchanged 3,808-test normal catalog, versus 1,027.8 at fourteen
 jobs; measured queue and occupancy decide adoption. Run backend and web builds
 concurrently inside the existing build job and join both before producing the
 delivery fixture and identity manifest. A failed child remains a build failure.
-Every further change gets a source-specific work-order update before implementation.
+The measured cross-platform helper builds move to a separate required hosted
+job. Browser prerequisites compile only the native/Linux binaries they consume;
+Linux/arm64, Darwin helpers and diagnostic CLI/winjob compilation remain required
+in parallel. Reuse existing Make targets without changing local/release builds.
+The report gate joins this job and rejects failure, cancellation or an unexpected
+skip. Every further change gets a source-specific work-order update before implementation.
 
 ## Evidence, acceptance and rollback
 

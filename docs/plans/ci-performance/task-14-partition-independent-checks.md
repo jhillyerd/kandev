@@ -101,3 +101,31 @@ The native Vitest sequencer retains the same 2,948 files exactly once across two
 unit suite (2.036 seconds), retaining the no-argument two-cohort mode and rejecting
 invalid selection. Backend workflow contracts pass 22 cases, including executable
 sidebar nested-selection coverage and both required Windows process jobs.
+
+### Cold Windows compilation boundary
+
+In the second candidate, persistence job 115914242608 produced no test results
+before its six-minute step deadline. Settings job 115914242752 passed the three
+small packages (1.155s, 1.255s, 1.391s) then spent the remaining time compiling
+the large dependency closure. The 2 GiB heap did not resolve the cold build.
+
+Add a bounded compilation warmup before these two groups: use the exact union
+of their existing package selectors, the same trimpath/fts5/race mode and a
+zero-match run selector. Allow two compilation packages with GOMAXPROCS=2 and
+GOMEMLIMIT=2GiB; no test assertions run during warmup. Its ten-minute step bound
+and thirty-second empty-test bound are independent of the existing six-minute
+targeted steps and four-minute test alarms, which remain unchanged. This
+restores the compilation-before-tests separation previously supplied by the
+monolithic native job. Measure the entire job, including warmup; a deadline
+change alone is not a performance improvement.
+
+### Four native Windows process cohorts
+
+The two hosted process groups passed in 13m40s and 16m14s. The slower group
+alone exceeds the full budget. Extend the same native sorted inventory partition
+to four hosted cohorts; retain two as the no-argument local default. Accept only
+these supported cohort counts and reject out-of-range selection before work.
+Reports retain inventory, selected count/index, exact completion validation and
+true process exits. Existing race, 25-minute deadlock and job bounds remain.
+Verify default compatibility, four-way exact name coverage (including duplicate
+name occurrences in separate packages), invalid counts and full native CI.

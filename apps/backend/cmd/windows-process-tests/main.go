@@ -78,12 +78,13 @@ type runReport struct {
 	Inventory      inventory
 	Cohorts        []cohort
 	SelectedCohort int
+	TotalCohorts   int
 	Commands       []*recordedCommand
 	Complete       bool
 	Failure        string
 }
 
-func runNative(directory string, selected int) (report runReport, result error) {
+func runNative(directory string, selected, total int) (report runReport, result error) {
 	listing := newCommand(directory, "inventory", "")
 	report.Commands = append(report.Commands, listing)
 	if err := joinCommands([]command{listing}); err != nil {
@@ -94,11 +95,12 @@ func runNative(directory string, selected int) (report runReport, result error) 
 		return report, err
 	}
 	report.Inventory = inv
-	groups, err := partition(inv)
+	groups, err := partition(inv, total)
 	if err != nil {
 		return report, err
 	}
 	report.SelectedCohort = selected
+	report.TotalCohorts = total
 	report.Cohorts, err = selectCohorts(groups, selected)
 	if err != nil {
 		return report, err
@@ -175,10 +177,11 @@ func publishFile(path string) (result error) {
 }
 
 func main() {
-	selected := flag.Int("cohort", 0, "Native cohort to run: 0 (both), 1 or 2")
+	selected := flag.Int("cohort", 0, "Native cohort to run: 0 (all) or a one-based index")
+	total := flag.Int("cohorts", 2, "Native partition count: 2 (local default) or 4 (hosted)")
 	flag.Parse()
-	if *selected < 0 || *selected > 2 || flag.NArg() != 0 {
-		fmt.Fprintln(os.Stderr, "Specify only -cohort=0, -cohort=1 or -cohort=2")
+	if (*total != 2 && *total != 4) || *selected < 0 || *selected > *total || flag.NArg() != 0 {
+		fmt.Fprintln(os.Stderr, "Specify -cohorts=2 or 4 and -cohort=0 or an index within that count")
 		os.Exit(1)
 	}
 	if runtime.GOOS != "windows" {
@@ -190,7 +193,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	report, err := runNative(directory, *selected)
+	report, err := runNative(directory, *selected, *total)
 	err = errors.Join(err, publishReport(directory, report, err))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

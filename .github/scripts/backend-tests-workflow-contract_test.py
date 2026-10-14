@@ -88,6 +88,47 @@ class BackendTestsWorkflowContractTest(unittest.TestCase):
             for engine in ("SQLite", "Postgres"):
                 self.assertIn(f"TestDeliveryRetention{name}/{engine}", passed)
 
+    def test_windows_warmup_compiles_exact_targeted_package_unions_without_tests(self) -> None:
+        for suite in ("settings", "persistence"):
+            warmup = step_block(self.workflow, "Compile Windows " + suite + " test packages")
+            self.assertIn("if: matrix.suite == '" + suite + "'", warmup)
+            self.assertIn("timeout-minutes: 10", warmup)
+            self.assertIn("GOMAXPROCS: '2'", warmup)
+            self.assertIn("GOMEMLIMIT: 2GiB", warmup)
+            self.assertIn("go test -trimpath -tags fts5 -race -p=2 -run '^$' -count=1 -timeout=30s", warmup)
+            selected = set()
+            for step in self.workflow.split("      - name: ")[1:]:
+                if not step.startswith("Test Windows ") or "if: matrix.suite == '" + suite + "'" not in step:
+                    continue
+                selected.update(re.findall(r"\./internal/[\w/.-]+", step))
+            self.assertTrue(selected)
+            self.assertEqual(set(re.findall(r"\./internal/[\w/.-]+", warmup)), selected)
+            self.assertNotIn("continue-on-error", warmup)
+
+    def test_four_ordinary_shards_cover_native_packages_once_except_repository(self) -> None:
+        source = self.workflow.split("  test_shards:\n", 1)[1].split("  repository_tests:\n", 1)[0]
+        self.assertEqual(re.findall(r"- shard: (\d+)\n            index: (\d+)", source),
+                         [(str(n + 1), str(n)) for n in range(4)])
+        step = step_block(self.workflow, "Run tests")
+        script = textwrap.dedent(step.split("        run: |\n", 1)[1])
+        script = script.split("# Keep complete JSON", 1)[0]
+        script += "\nprintf '%s\\n' \"${shard_packages[@]}\"\n"
+        packages = ["github.com/kandev/kandev/internal/future/part" + str(n) for n in range(40)]
+        repository = "github.com/kandev/kandev/internal/task/repository/sqlite"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            go = root / "go"
+            go.write_text("#!/usr/bin/env bash\n[[ \"$*\" == 'list ./...' ]] || exit 9\nprintf '%s\\n' \"$NATIVE_PACKAGES\"\n")
+            go.chmod(0o755)
+            selected = []
+            for index in range(4):
+                result = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True,
+                                        env={**os.environ, "PATH": str(root) + os.pathsep + os.environ["PATH"],
+                                             "NATIVE_PACKAGES": "\n".join(packages + [repository]),
+                                             "SHARD_INDEX": str(index), "SHARD_NUMBER": str(index + 1)})
+                selected.extend(line for line in result.stdout.splitlines() if line.startswith("github.com/"))
+            self.assertCountEqual(selected, packages)
+
     def test_repository_cohorts_are_required_and_excluded_only_from_ordinary_jobs(self) -> None:
         normal = self.workflow.split("  test_shards:\n", 1)[1].split("  test_ambient_env:\n", 1)[0]
         self.assertIn('if [[ "${package}" == github.com/kandev/kandev/internal/task/repository/sqlite ]]; then continue; fi', normal)
@@ -158,7 +199,7 @@ func TestSidebarQueryPoolMemoryPlateau(t *testing.T) {
 
     def test_windows_suites_run_independently_without_fail_fast(self) -> None:
         windows_job = self.workflow.partition("  test-windows:\n")[2]
-        for value in ("process, cohort: 1, label: process 1/2", "process, cohort: 2, label: process 2/2"):
+        for value in (f"process, cohort: {n}, label: process {n}/4" for n in range(1, 5)):
             self.assertIn("{suite: " + value + "}", windows_job)
         for value in ("native", "compile", "persistence", "settings"):
             self.assertIn("{suite: " + value + ", label: " + value + "}", windows_job)
@@ -167,7 +208,7 @@ func TestSidebarQueryPoolMemoryPlateau(t *testing.T) {
         self.assertNotIn("continue-on-error", windows_job)
         process = step_block(windows_job, "Test Windows process package")
         self.assertIn("if: matrix.suite == 'process'", process)
-        self.assertIn("go run ./cmd/windows-process-tests -cohort $env:WINDOWS_PROCESS_COHORT", process)
+        self.assertIn("go run ./cmd/windows-process-tests -cohorts 4 -cohort $env:WINDOWS_PROCESS_COHORT", process)
         self.assertIn("WINDOWS_PROCESS_COHORT: ${{ matrix.cohort }}", process)
         helper = step_block(windows_job, "Test Windows process cohort runner")
         self.assertIn("if: matrix.suite == 'process'", helper)

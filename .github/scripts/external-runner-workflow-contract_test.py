@@ -48,8 +48,12 @@ class ExternalRunnerWorkflowContractTest(unittest.TestCase):
         )
         self.assertIn(
             "runs-on: ubuntu-latest",
-            job_block(workflow, "changes", "build"),
+            job_block(workflow, "changes", "helper_compile"),
         )
+        helpers = job_block(workflow, "helper_compile", "build")
+        self.assertIn("runs-on: ubuntu-latest", helpers)
+        self.assertNotIn("runner_plan", helpers)
+        self.assertNotIn("KANDEV_CI_EXTERNAL", helpers)
         build = job_block(workflow, "build", "e2e")
         self.assertIn("runs-on: ubuntu-latest", build)
         self.assertNotIn("runner_plan", build)
@@ -83,14 +87,15 @@ class ExternalRunnerWorkflowContractTest(unittest.TestCase):
         for job, next_job in (
             ("changes", "static_checks"),
             ("static_checks", "test_shards"),
+            ("repository_tests", "test_ambient_env"),
             ("test_ambient_env", "test"),
         ):
             protected = job_block(workflow, job, next_job)
             self.assertIn("runs-on: ubuntu-latest", protected)
             self.assertNotIn("runner_plan", protected)
-        shards = job_block(workflow, "test_shards", "test_ambient_env")
-        self.assertIn("- shard: 1", shards)
-        self.assertIn("- shard: 2", shards)
+        shards = job_block(workflow, "test_shards", "repository_tests")
+        for index in range(1, 5):
+            self.assertIn(f"- shard: {index}", shards)
         self.assertIn("runs-on: ubuntu-latest", shards)
         self.assertNotIn("runner_plan", shards)
         self.assertNotIn("matrix.runner", shards)
@@ -116,7 +121,7 @@ class ExternalRunnerWorkflowContractTest(unittest.TestCase):
         )
         self.assertIn(
             "runs-on: ${{ fromJSON(needs.changes.outputs.plan).frontend_runner }}",
-            job_block(workflow, "frontend", "frontend-gate"),
+            job_block(workflow, "frontend", "frontend_tests"),
         )
         frontend = job_block(workflow, "frontend", "frontend_tests")
         self.assertNotIn("matrix:", frontend)
