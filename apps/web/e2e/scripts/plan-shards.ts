@@ -238,6 +238,31 @@ function estimateUnit(
   };
 }
 
+function schedulingGroups(units: PlannedUnit[], cohort: Cohort): PlannedUnit[][] {
+  const kind: PlannedUnit[] = [];
+  const groups: PlannedUnit[][] = [];
+  for (const unit of units) {
+    if (
+      cohort === "containers" &&
+      unit.project === "containers" &&
+      unit.file.startsWith("tests/kubernetes/")
+    ) {
+      kind.push(unit);
+    } else {
+      groups.push([unit]);
+    }
+  }
+  if (kind.length) groups.push(kind.sort((left, right) => left.id.localeCompare(right.id)));
+  return groups.sort(
+    (left, right) =>
+      groupSeconds(right) - groupSeconds(left) || left[0]!.id.localeCompare(right[0]!.id),
+  );
+}
+
+function groupSeconds(units: PlannedUnit[]): number {
+  return units.reduce((total, unit) => total + unit.estimatedSeconds, 0);
+}
+
 export function createShardPlan(
   units: CatalogUnit[],
   options: {
@@ -266,18 +291,16 @@ export function createShardPlan(
     units: [],
   }));
 
-  const sortedUnits = [...plannedUnits].sort(
-    (left, right) =>
-      right.estimatedSeconds - left.estimatedSeconds || left.id.localeCompare(right.id),
-  );
-  for (const unit of sortedUnits) {
+  for (const group of schedulingGroups(plannedUnits, options.cohort)) {
     const shard = shards.reduce((lightest, candidate) => {
       if (candidate.predictedSeconds < lightest.predictedSeconds) return candidate;
       return candidate.index < lightest.index ? candidate : lightest;
     }, shards[0]!);
-    shard.units.push(unit);
-    shard.predictedSeconds += unit.estimatedSeconds;
-    if (!shard.files.includes(unit.file)) shard.files.push(unit.file);
+    shard.units.push(...group);
+    shard.predictedSeconds += groupSeconds(group);
+    for (const unit of group) {
+      if (!shard.files.includes(unit.file)) shard.files.push(unit.file);
+    }
   }
   for (const shard of shards) {
     shard.units.sort((left, right) => left.id.localeCompare(right.id));

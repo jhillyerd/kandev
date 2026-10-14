@@ -238,3 +238,19 @@ workload, the idealized process estimate falls from 515 to 343 seconds; contenti
 and fixture repetition make this only an experiment. Verify three-way disjoint
 whole-file allocation and failure joins, and retain actual process count, retry
 rate, job occupancy and complete elapsed time. Reject a resource/flake regression.
+
+### Container fixture affinity (fifth candidate)
+
+Fourth candidate run 38595327868 placed Kubernetes files on five separate
+container jobs. Every one provisions the same worker-scoped Kind fixture; the
+sixth job contains only the four normally opt-in Docker-workload cases. The
+slowest successful container job took 733 seconds after the shared build.
+Co-locate container-project `tests/kubernetes/` units as one atomic scheduling
+group, then balance the remaining Docker/SSH units with the existing LPT rule.
+Keep six jobs, one worker per container job, every native identity, optional
+scenario gate and original estimate. Normal-project scheduling stays unchanged.
+
+Before adoption, prove deterministic placement and exact coverage for profiled
+and fallback inputs, including future Kubernetes files and project boundaries.
+Run the real combined Kubernetes files to verify worker-fixture reuse and
+per-test cleanup; use hosted elapsed measurements to judge the candidate.

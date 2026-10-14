@@ -799,6 +799,8 @@ and joins their required results:
 - `e2e-containers` — a 6-entry matrix executing the generated container
   manifests and requiring Docker. A shard assigned `tests/kubernetes/**`
   installs checksum-pinned Kind/kubectl, then performs exact-name teardown.
+  Kubernetes files are scheduled together to share one worker-scoped Kind
+  cluster; their per-test workload cleanup and optional scenario gates remain.
 - `e2e-kubernetes-compatibility` — a two-version matrix running the single
   API-only compatibility smoke on Kubernetes `v1.34.8` and `v1.36.1`.
 - `e2e-report` — merges blob reports, publishes timing/retry artifacts, and

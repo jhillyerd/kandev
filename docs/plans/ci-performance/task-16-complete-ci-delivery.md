@@ -157,3 +157,135 @@ The extraction passes strict lint and the seven mobile component tests.
 Matched frontend candidate three passed all 26,411 tests in 1,074 seconds full
 elapsed, 739 seconds execution critical path and 30.48 runner-minutes. Its paired
 unsharded baseline remains running. The added waiting is retained in the result.
+
+### Fourth hosted candidate and fifth-candidate remediation
+
+Head `13aa34b8eedead8cb32bfa29aefb1e1dded96ebc` uses tested merge
+`39c237ef2e5a4fbe32b643d456458701a9f284b1`. Frontend 38595327890 passed
+in 588 seconds with 26,419 tests; the eight-test net increase is accounted for
+by the new fixture/process cases. All three frozen frontend comparisons now
+pass exact identities/outcomes. Median execution critical path is 1,576 to 682
+seconds (56.73% lower); median runner-minutes are 26.2667 to 27.2 (+3.55%).
+
+Backend 38595328037 attempt one failed a Go proxy HTTP/2 download before
+repository cohort 1 began. All other jobs passed; full attempt elapsed was
+1,136 seconds. Retry only that failed job once under the transport-failure
+procedure. This is not a fresh complete performance sample.
+
+E2E 38595327868 has three failing tests: coordinator permission answer and two
+auto-scroll scenarios. The two mobile regressions now pass. The auto-scroll
+failures match the selector remediation already authored in PR #4486 at
+`fe7d97c84c72210151b93c3aee65b8c6d2a844cb`: exact output text for the
+state-transition case and agent-message-body scoping for live markers. Reuse
+that exact test-file patch, retaining every scroll assertion, deadline and
+retry setting; verify the two scenarios locally. This does not adopt the
+other PR's shared cache or image changes. Coordinator diagnosis remains open.
+
+Coordinator diagnosis: a five-second delay of the application entry module
+reproduces the missing card locally. The backend task remains RUNNING with
+`status_summary.pending_action=permission` and a persisted permission request.
+`useAllWorkflowSnapshots` mounts after the socket is already connected, accepts
+the earlier boot snapshot, and never observes a connection-state transition to
+refresh it. This is a missed boot-to-live update, not lost auto-approval config.
+Permission waiting is represented by `pending_action`, not necessarily
+WAITING_FOR_INPUT; an exploratory state wait was therefore discarded.
+
+Retain boot data for immediate rendering, but refresh the shared snapshot on
+initial mount when the live connection is already ready. Before connection,
+retain the existing boot fast path; the connection transition still refreshes.
+Strengthen the existing permission-answer E2E by holding the application entry
+module until the backend reports the actual pending permission, then verify
+all original answer/resume assertions. Add a focused hook regression for an
+already-connected mount, preserved boot data during the read, and no rerender
+fetch loop. Remove all temporary diagnostic logs and arbitrary startup delays.
+
+Fourth E2E elapsed is 1,736 seconds (28m56s), with 1,725 seconds execution
+critical path and 340.47 runner-minutes. It is failed evidence, not acceptance.
+The backend's one permitted failed-job rerun succeeded; attempt-two reused-job
+timestamps cannot form a fresh DAG timing sample, so retain attempt-one timing
+and the successful recovery outcome separately.
+
+The coordinator causal E2E failed at the original missing-card assertion before
+the fix, even when the startup barrier waited on actual `pending_action` rather
+than a fixed delay. The new already-connected hook case also failed before the
+fix. Its surrounding snapshot/Coordinator suites pass 63 cases after the fix.
+The container planning/runner suites pass 39 cases; native container selection
+is unchanged at 46 units / 153 tests with the same file hashes and checksum.
+
+The coordinator causal browser case passes after the snapshot fix (3.7 seconds).
+The reused auto-scroll selectors fix the live-tail strict-mode failure, but the
+combined state-transition test still fails locally because its direct scrollTop
+assignment races catch-up motion from the preceding step. Reader intent is
+registered through wheel/pointer/key events; direct assignment does not interrupt
+that motion. Replace only the three reader-position setup assignments in that
+scenario with a real upward wheel and an observed stable position, following the
+existing inactive-session case's gesture. Preserve all enabled/disabled, freeze,
+remount, and catch-up assertions and their deadlines.
+
+The first combined local Kubernetes attempt is invalid: source-built binaries
+still carried commit 5949 while the checkout/manifests used 13aa. The nested
+backend explicitly rejected the remote-helper manifest identity. Stop that
+owned run, retain its failure log, and rebuild native/remote helper artifacts
+with the same current version and full commit before rerunning. Do not weaken
+identity validation or count this attempt as timing/fixture acceptance.
+
+With matching local artifacts and a fresh web build, all four focused browser
+checks pass in 38.8 seconds: complete scroll state transitions, live upward-wheel
+pause, clarification answer, and the causal delayed-startup permission answer.
+Strict changed-file ESLint, full web typecheck, 49 planner/hook refactor cases,
+21 E2E workflow contracts, seven measurement contracts, and documentation checks
+pass. The real combined Kubernetes suite is being repeated with verified build
+identity; hosted fifth-candidate measurements remain pending.
+
+Normal shard 23 passed only after two 240-second setup failures. Its three
+processes were enabled; the tail was not a resource fallback. Both failures
+were a task-title hover card intercepting `openTaskSession` during the third
+presentation task's setup. `startPresentationThread` already starts the task
+through `createTaskWithAgent`, then redundantly opens the board and clicks each
+card before waiting for the agent turn through the API. Remove only that
+redundant navigation from the presentation-specific helper and its unused Page
+argument. Keep real task creation, agent execution, completion waits, and every
+Threads layout/settings/composer assertion. Existing dedicated board/session
+navigation E2Es retain ownership of card opening. Verify the affected desktop
+and mobile presentation suites; no global task-opening helper or product hover
+behavior changes are part of this cleanup.
+
+
+Final fifth-candidate native discovery preserves every fourth-run unit identity
+and test count: 1,336 normal units / 3,808 tests and 46 container units / 153
+tests. Only the eight edited normal spec file hashes change; the container
+catalog checksum remains identical. The task presentation helper change does
+not delete a scenario or assertion.
+
+Fourth-run static-check logs confirm a complete Go/lint cache miss. That job
+spent 233 seconds on catalog/SQLite conformance and 453 seconds on golangci-lint,
+then approximately 172 seconds saving its cache. Treat the next restored-cache
+result as a separate measured condition; do not attribute all cold-to-warm
+improvement to source changes. Related PR #4486 remains open and owns the cache
+refresh implementation; this candidate does not duplicate that work.
+
+
+The combined Kubernetes suite passes with one worker and matching native/helper
+artifacts: 18 passed and the four existing opt-in cases skipped in 10.7 minutes.
+All seven files share one Kind cluster, including native Codex, in-cluster auth,
+restart/ownership/storage/error recovery, concurrent task sessions, and all three
+prepared worker images. The owned cluster is absent after teardown. This proves
+fixture compatibility and cleanup, not a hosted latency win. The affected 33
+Threads desktop/mobile checks are the remaining local gate before push.
+
+
+The first affected Threads run completed in 5.8 minutes: 31 passed and two
+translated-settings cases failed because the manually rebuilt local web bundle
+used the production target, which excludes the pseudo QA catalog. Both failures
+received English Grid text at the unchanged pseudo-locale assertion. Retain this
+configuration failure, rebuild using the standard make build-web-e2e target used
+by CI, and repeat both desktop/mobile display-settings files. No product or test
+assertion change is justified by this missing local build flag.
+
+
+After make build-web-e2e, all six desktop/mobile display-settings cases pass in
+53.9 seconds without source changes or retries. Together with the first run's
+31 passing cases, every one of the 33 affected Threads scenarios has passed; the
+two configuration failures remain recorded above. All final source checks pass.
+The next action is the normal hooked commit and one hosted candidate push; full
+workflow acceptance, current review and merge remain pending.

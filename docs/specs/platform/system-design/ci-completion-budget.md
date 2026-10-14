@@ -175,3 +175,13 @@ end this authorized loop. No delegation is authorized.
 
 [Budget decision](../../../decisions/2026-10-14-complete-ci-latency-budget.md)
 records the revised fan-out boundary.
+
+### Container fixture affinity
+
+Container scheduling treats the `containers` project's `tests/kubernetes/`
+files as an atomic group because they share expensive worker-scoped Kind setup.
+The group retains each file's native catalog identity and estimate; its scheduling
+weight is their sum. Other files retain independent LPT placement. This changes
+placement only: six container jobs and one worker per job remain fixed, and the
+full-worker opt-in scenarios remain in the manifest with their existing gates.
+Verify the grouped real suite's cleanup and elapsed time before adoption.
