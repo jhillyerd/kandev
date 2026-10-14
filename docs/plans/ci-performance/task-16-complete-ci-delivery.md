@@ -25,8 +25,9 @@ Collect hosted attempts, exact coverage reports, workflow identities and occupan
 
 ## Exclusions
 
-No application behavior, paid capacity activation, trust expansion, assertion
-removal, automatic retries or delegation. Preserve unrelated user changes.
+No new product behavior, paid capacity activation, trust expansion, assertion
+removal, automatic retries or delegation. Repair a demonstrated existing-contract
+regression only when needed to retain a failing CI assertion. Preserve unrelated user changes.
 
 ## Acceptance
 
@@ -117,3 +118,42 @@ processes across 28 jobs. Its longest whole-file estimate is 438.6825 seconds,
 so the idealized 343-second average is not the expected tail. Native ordinary Go
 selection remains exactly 407 packages in buckets 97/105/112/93, with the
 repository package delegated once to its required native-cohort matrix.
+
+### Third-candidate mobile failures and bounded remediation
+
+E2E run 38587972415 failed in 2,076 seconds (34m36s), with 1,767 seconds
+execution critical path and 377.43 runner-minutes. Preserve this failed attempt.
+Its two failures are mobile empty-turn hints and non-active parent defaults.
+The trace's sidebar response contains the selected parent's repository, but the
+subtask dialog reads only the active Kanban collection. A browser connected
+before the parent finishes can mask that missing data dependency through live
+events. The dialog's initial repository effect then runs only on mount.
+
+Keep the existing mobile composition and assertions. Pass the selected drawer
+row into the existing subtask dialog as initial parent context; prefer a matching
+current store row when available. Do not change persisted settings or form edits.
+Make the existing E2E wait for parent completion before navigation to prove the
+paged-row path without live creation events. Cover explicit selected-parent
+context independently of the active task and preserve desktop callers.
+
+The empty-turn notice is live-only. Use the same established desktop test
+sequence on mobile: open a completed ordinary turn, then send the empty slash
+command after chat readiness. Do not lengthen retries/timeouts or remove the
+hint assertion. Verify both rendered mobile scenarios together after rebuilding.
+This is CI regression remediation under the user's continuous delivery authority.
+
+The strengthened selected-parent test failed locally before the fix, matching the
+hosted missing-chip assertion. After the row handoff and a fresh production web
+build, all three focused mobile scenarios passed in 20.3 seconds: the live hint
+(using the phone Send button), ordinary Create Subtask, and completed non-active
+parent defaults. Eleven existing component/context tests, changed-file ESLint,
+formatting, full web typecheck and documentation validation passed. No UI layout,
+copy, public API, or operator instructions change; this restores existing defaults.
+
+Desktop Create Subtask also passed (one test, ten seconds including setup).
+The normal commit hook enforced the component-length limit; extracting the
+mobile target state/handler into a focused hook preserves the same row handoff.
+The extraction passes strict lint and the seven mobile component tests.
+Matched frontend candidate three passed all 26,411 tests in 1,074 seconds full
+elapsed, 739 seconds execution critical path and 30.48 runner-minutes. Its paired
+unsharded baseline remains running. The added waiting is retained in the result.

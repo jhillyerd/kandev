@@ -39,6 +39,7 @@ type NewSubtaskDialogProps = {
   onOpenChange: (open: boolean) => void;
   parentTaskId: string;
   parentTaskTitle: string;
+  parentTask?: KanbanState["tasks"][number] | null;
 };
 
 type ParentTaskContext = {
@@ -121,13 +122,19 @@ function resolveInitialPrompt(
   );
 }
 
-function useSubtaskDialogState(parentTaskId: string, parentSessions: TaskSession[]) {
+function useSubtaskDialogState(
+  parentTaskId: string,
+  parentSessions: TaskSession[],
+  selectedParentTask?: KanbanState["tasks"][number] | null,
+) {
   const agentProfiles = useAppStore((s) => s.agentProfiles.items);
   const workspaceId = useAppStore((s) => s.workspaces.activeId);
   const workflowId = useAppStore((s) => s.kanban.workflowId);
   const executors = useAppStore((s) => s.executors.items);
   const parentTask = useAppStore(
-    (s) => s.kanban.tasks.find((task) => task.id === parentTaskId) ?? null,
+    (s) =>
+      s.kanban.tasks.find((task) => task.id === parentTaskId) ??
+      (selectedParentTask?.id === parentTaskId ? selectedParentTask : null),
   );
   const sessionsById = useAppStore((s) => s.taskSessions.items);
   const sessionsByTaskId = useAppStore((s) => s.taskSessionsByTask.itemsByTaskId);
@@ -501,6 +508,7 @@ export function NewSubtaskDialog({
   onOpenChange,
   parentTaskId,
   parentTaskTitle,
+  parentTask,
 }: NewSubtaskDialogProps) {
   const { t } = useTranslation();
   const { sessions: parentSessions } = useTaskSessions(parentTaskId);
@@ -514,7 +522,7 @@ export function NewSubtaskDialog({
     initialPrompt,
     parentRepositoryId,
     baseBranch,
-  } = useSubtaskDialogState(parentTaskId, parentSessions);
+  } = useSubtaskDialogState(parentTaskId, parentSessions, parentTask);
 
   // Ensure executor/agent data is loaded when dialog opens
   useSettingsData(open);
