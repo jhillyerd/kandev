@@ -5,9 +5,6 @@ package agenthistory
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -65,34 +62,4 @@ func configRoot(id Identity, envKey, homeSubdir string) string {
 		return ""
 	}
 	return filepath.Join(id.HomeDir, homeSubdir)
-}
-
-// realDir reports whether path is a directory that is not a symlink.
-func realDir(path string) (bool, error) {
-	info, err := os.Lstat(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return info.IsDir(), nil
-}
-
-// removeRegularFile removes path only when it is a regular file.
-func removeRegularFile(path string) error {
-	info, err := os.Lstat(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if !info.Mode().IsRegular() {
-		return nil
-	}
-	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("remove %s: %w", path, err)
-	}
-	return nil
 }

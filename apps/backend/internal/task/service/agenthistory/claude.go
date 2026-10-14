@@ -3,7 +3,6 @@ package agenthistory
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,58 +41,76 @@ func removeClaude(ctx context.Context, id Identity) error {
 	if len(name) > claudeMaxProjectNameLength {
 		return nil
 	}
-	projects := filepath.Join(root, "projects")
-	if ok, err := realDir(projects); err != nil || !ok {
+	history, err := openHistoryRoot(root)
+	if err != nil || history == nil {
 		return err
 	}
-	project := filepath.Join(projects, name)
-	if ok, err := realDir(project); err != nil || !ok {
+	defer func() { _ = history.Close() }()
+	projects, err := openRealSubdirectory(history, "projects")
+	if err != nil || projects == nil {
 		return err
 	}
+	defer func() { _ = projects.Close() }()
+	project, err := openRealSubdirectory(projects, name)
+	if err != nil || project == nil {
+		return err
+	}
+	defer func() { _ = project.Close() }()
 	if err := context.Cause(ctx); err != nil {
 		return err
 	}
 	var errs []error
-	if err := removeRegularFile(filepath.Join(project, id.ResumeToken+".jsonl")); err != nil {
+	removed, err := removeRegularFile(project, id.ResumeToken+".jsonl")
+	if err != nil {
 		errs = append(errs, err)
 	}
-	sidecar := filepath.Join(project, id.ResumeToken)
-	if ok, err := realDir(sidecar); err != nil {
+	sidecar, err := openRealSubdirectory(project, id.ResumeToken)
+	if err != nil {
 		errs = append(errs, err)
-	} else if ok {
-		if err := os.RemoveAll(sidecar); err != nil {
-			errs = append(errs, fmt.Errorf("remove %s: %w", sidecar, err))
-		}
+	} else if sidecar != nil {
+		sidecarRemoved, removeErr := removePinnedDirectory(ctx, project, id.ResumeToken, sidecar)
+		_ = sidecar.Close()
+		removed = removed || sidecarRemoved
+		errs = append(errs, removeErr)
 	}
-	if len(errs) == 0 {
-		errs = append(errs, removeEmptyClaudeProject(project))
+	if removed && errors.Join(errs...) == nil {
+		errs = append(errs, removeEmptyClaudeProject(projects, name, project))
 	}
 	return errors.Join(errs...)
 }
 
 // removeEmptyClaudeProject removes a project directory that holds nothing, or
 // only an empty memory directory.
-func removeEmptyClaudeProject(project string) error {
-	entries, err := os.ReadDir(project)
+func removeEmptyClaudeProject(projects *os.Root, name string, project *os.Root) error {
+	entries, err := historyEntries(project)
 	if err != nil {
 		return err
 	}
-	for _, entry := range entries {
-		if entry.Name() != claudeMemoryDir || !entry.IsDir() {
-			return nil
+	if len(entries) > 1 || (len(entries) == 1 && entries[0].Name() != claudeMemoryDir) {
+		return nil
+	}
+	if len(entries) == 1 {
+		memory, err := openRealSubdirectory(project, claudeMemoryDir)
+		if err != nil || memory == nil {
+			return err
 		}
-		memory, err := os.ReadDir(filepath.Join(project, claudeMemoryDir))
-		if err != nil || len(memory) > 0 {
+		defer func() { _ = memory.Close() }()
+		info, err := memory.Stat(".")
+		if err != nil {
+			return err
+		}
+		contents, err := historyEntries(memory)
+		if err != nil || len(contents) > 0 {
+			return err
+		}
+		if _, err := removeObservedEntry(project, claudeMemoryDir, info); err != nil {
 			return err
 		}
 	}
-	if len(entries) > 0 {
-		if err := os.Remove(filepath.Join(project, claudeMemoryDir)); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
+	info, err := project.Stat(".")
+	if err != nil {
+		return err
 	}
-	if err := os.Remove(project); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("remove %s: %w", project, err)
-	}
-	return nil
+	_, err = removeObservedEntry(projects, name, info)
+	return err
 }

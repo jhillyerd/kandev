@@ -30,7 +30,7 @@ Claude Code transcript (plus sidecar and empty project dir) or the matching Code
 - `Identity` type and `Remove(ctx, Identity) error` dispatcher.
 - Claude remover: root resolution, cwd encoding, exact file/dir removal, empty project-dir
   removal, >200-char skip.
-- Codex remover: root resolution, bounded `sessions/*/*/*/rollout-*-<token>.jsonl` glob,
+- Codex remover: root resolution, literal traversal of three date-directory levels,
   first-line `session_meta` id and cwd check.
 - Path containment and symlink guards; token validation.
 
@@ -82,6 +82,13 @@ Claude's cwd encoding is observed, not documented. Tests pin the observed format
 - `apps/backend/AGENTS.md`
 
 ## Results
+
+- PR remediation: the original stdlib package passed before new regressions were added.
+  The added cases failed on year/month/day symlinks, a bracketed home, a replaced Claude
+  project, and an unowned empty project with a colliding encoded cwd. Pinned directory
+  handles, literal traversal, and ownership-gated project pruning make all those cases
+  and the existing package tests pass in the constrained non-root sandbox. Service and
+  full backend verification are hosted separately.
 
 - `go test -trimpath ./internal/task/service/agenthistory/... -count=1`: pass (tests fail when
   the removers are disabled).

@@ -81,8 +81,9 @@ rune outside `[A-Za-z0-9]` replaced by `-` (matches observed directory names suc
 Claude truncates and hashes encoded names longer than its path limit. When `encoded` exceeds 200
 characters the remover skips the session rather than guessing the hashed name.
 
-**Codex.** `root = $CODEX_HOME or $HOME/.codex`. Search `root/sessions/*/*/*/` for
-`rollout-*-<token>.jsonl` (bounded glob, no recursive scan). For each match, read only the first
+**Codex.** `root = $CODEX_HOME or $HOME/.codex`. Traverse three real directory levels below
+`root/sessions/` and select `rollout-*-<token>.jsonl` names. The configured root is a literal
+path, including bracket characters. For each match, read only the first
 line and require `type == "session_meta"`, `payload.id == token`, and `payload.cwd == WorkDir`
 before removing it. Codex-owned `state_5.sqlite` and `session_index.jsonl` are not modified.
 
@@ -126,8 +127,14 @@ Removal is best-effort and idempotent; a failed removal is logged and leaves the
 
 ## Security
 
-- Every candidate path is cleaned and checked to be inside the resolved root after
-  `filepath.EvalSymlinks` of the parent; a symlinked transcript or project dir is not followed.
+- The configured history root is resolved once and opened through pinned `os.Root` handles.
+  Each project and date component is checked with `Lstat`, opened relative to its pinned
+  parent, and compared with its original identity. Symlinked components and transcripts are
+  skipped. Reads and removals stay relative to retained handles when a lexical ancestor is
+  renamed or replaced; a leaf identity is checked again before removal.
+- Claude's empty project directory is pruned only after a transcript or sidecar belonging
+  to the selected session was removed. A missing session cannot prune an unrelated empty
+  project whose working directory encodes to the same name.
 - Only exact names derived from the session's identity are removed; no prefix or substring
   matching on directory names.
 - Non-local executors never touch the host filesystem.
