@@ -654,7 +654,9 @@ test.describe("Transcript auto-scroll toggle", () => {
       await expect(toggle).toHaveAttribute("aria-pressed", "true");
 
       await session.sendMessage('e2e:message("New content while enabled")');
-      await expect(session.chat.getByText("New content while enabled").last()).toBeVisible({
+      await expect(
+        session.chat.getByText("New content while enabled", { exact: true }),
+      ).toBeVisible({
         timeout: 15_000,
       });
       await expect
@@ -696,7 +698,7 @@ test.describe("Transcript auto-scroll toggle", () => {
       // the viewport, dragging scrollTop down to chase the new content.
       await session.sendMessage('e2e:message("New content while disabled at bottom")');
       await expect(
-        session.chat.getByText("New content while disabled at bottom").last(),
+        session.chat.getByText("New content while disabled at bottom", { exact: true }),
       ).toBeVisible({ timeout: 15_000 });
 
       await expect
@@ -737,7 +739,9 @@ test.describe("Transcript auto-scroll toggle", () => {
       // A brand-new message arrives (a real follow-up turn over the live WS
       // pipeline) while scrolled away from the bottom and disabled.
       await session.sendMessage('e2e:message("New content while disabled")');
-      await expect(session.chat.getByText("New content while disabled").last()).toBeVisible({
+      await expect(
+        session.chat.getByText("New content while disabled", { exact: true }),
+      ).toBeVisible({
         timeout: 15_000,
       });
 
@@ -894,7 +898,7 @@ test.describe("Transcript auto-scroll toggle", () => {
         'e2e:message("LIVE-FOLLOW-START")\ne2e:delay(2500)\ne2e:message("LIVE-FOLLOW-TAIL")',
       );
       await expect(
-        session.activeChat().getByText("LIVE-FOLLOW-START", { exact: false }),
+        session.activeChat().locator("[data-agent-message-body]").getByText("LIVE-FOLLOW-START"),
       ).toBeVisible();
       const runningStatus = list.getByRole("status", { name: "Agent is running" });
       await expect(runningStatus).toBeVisible({ timeout: 10_000 });
@@ -933,7 +937,7 @@ test.describe("Transcript auto-scroll toggle", () => {
       releaseOutput();
 
       await expect(
-        session.activeChat().getByText("LIVE-FOLLOW-TAIL", { exact: false }),
+        session.activeChat().locator("[data-agent-message-body]").getByText("LIVE-FOLLOW-TAIL"),
       ).toBeVisible({
         timeout: 10_000,
       });
