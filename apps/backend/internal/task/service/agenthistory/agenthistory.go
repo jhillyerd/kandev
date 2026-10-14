@@ -7,7 +7,6 @@ import (
 	"context"
 	"path/filepath"
 	"regexp"
-	"strings"
 )
 
 // Agent names whose history this package can remove.
@@ -55,7 +54,10 @@ func Remove(ctx context.Context, id Identity) error {
 // configRoot resolves an agent's history root from an environment override or
 // a directory under the home directory. It returns "" when no root is known.
 func configRoot(id Identity, envKey, homeSubdir string) string {
-	if dir := strings.TrimSpace(id.Env[envKey]); dir != "" && filepath.IsAbs(dir) {
+	if dir := id.Env[envKey]; dir != "" {
+		if !filepath.IsAbs(dir) {
+			return ""
+		}
 		return filepath.Clean(dir)
 	}
 	if id.HomeDir == "" || !filepath.IsAbs(id.HomeDir) {

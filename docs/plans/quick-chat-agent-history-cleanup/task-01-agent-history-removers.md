@@ -89,6 +89,11 @@ Claude's cwd encoding is observed, not documented. Tests pin the observed format
   handles, literal traversal, and ownership-gated project pruning make all those cases
   and the existing package tests pass in the constrained non-root sandbox. Service and
   full backend verification are hosted separately.
+- Further exact-source regressions demonstrated that trimming a config path selected a
+  different store, and a relative override selected the default store. Literal absolute
+  overrides and skipping unresolved relative overrides make both assertions and the full
+  stdlib package pass. A pure extraction addresses the hosted function-complexity failure;
+  its hosted recheck remains pending.
 
 - `go test -trimpath ./internal/task/service/agenthistory/... -count=1`: pass (tests fail when
   the removers are disabled).

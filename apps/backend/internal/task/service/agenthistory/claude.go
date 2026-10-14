@@ -41,20 +41,11 @@ func removeClaude(ctx context.Context, id Identity) error {
 	if len(name) > claudeMaxProjectNameLength {
 		return nil
 	}
-	history, err := openHistoryRoot(root)
-	if err != nil || history == nil {
-		return err
-	}
-	defer func() { _ = history.Close() }()
-	projects, err := openRealSubdirectory(history, "projects")
-	if err != nil || projects == nil {
-		return err
-	}
-	defer func() { _ = projects.Close() }()
-	project, err := openRealSubdirectory(projects, name)
+	projects, project, err := openClaudeProject(root, name)
 	if err != nil || project == nil {
 		return err
 	}
+	defer func() { _ = projects.Close() }()
 	defer func() { _ = project.Close() }()
 	if err := context.Cause(ctx); err != nil {
 		return err
@@ -77,6 +68,24 @@ func removeClaude(ctx context.Context, id Identity) error {
 		errs = append(errs, removeEmptyClaudeProject(projects, name, project))
 	}
 	return errors.Join(errs...)
+}
+
+func openClaudeProject(configDir, name string) (*os.Root, *os.Root, error) {
+	history, err := openHistoryRoot(configDir)
+	if err != nil || history == nil {
+		return nil, nil, err
+	}
+	defer func() { _ = history.Close() }()
+	projects, err := openRealSubdirectory(history, "projects")
+	if err != nil || projects == nil {
+		return nil, nil, err
+	}
+	project, err := openRealSubdirectory(projects, name)
+	if err != nil || project == nil {
+		_ = projects.Close()
+		return nil, nil, err
+	}
+	return projects, project, nil
 }
 
 // removeEmptyClaudeProject removes a project directory that holds nothing, or
