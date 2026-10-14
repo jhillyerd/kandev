@@ -19,6 +19,7 @@ import (
 
 	acp "github.com/coder/acp-go-sdk"
 	"github.com/kandev/kandev/internal/agent/managedruntime"
+	"github.com/kandev/kandev/internal/agent/runtime/routingerr"
 	"github.com/kandev/kandev/internal/agentctl/acpcompat"
 	acpclient "github.com/kandev/kandev/internal/agentctl/server/acp"
 	"github.com/kandev/kandev/internal/agentctl/sessionmodel"
@@ -577,12 +578,12 @@ func (e *ACPInferenceExecutor) Probe(ctx context.Context, req *ProbeRequest) (*P
 				zap.String("agent_id", req.AgentID),
 				zap.String("failure_code", string(failureCode)),
 				zap.String("managed_failure_code", string(managedFailureCode)),
-				zap.String("stderr", scrubTmpPaths(stderrTail)))
+				zap.String("stderr", probeStderrForLog(stderrTail)))
 		} else {
 			e.logger.Error("ACP probe failed",
 				zap.String("agent_id", req.AgentID),
 				zap.Error(err),
-				zap.String("stderr", stderrTail))
+				zap.String("stderr", probeStderrForLog(stderrTail)))
 		}
 		return &ProbeResponse{
 			Success:     false,
@@ -1522,6 +1523,14 @@ var tmpPathRE = regexp.MustCompile(`(?:/tmp|/var/folders|[A-Za-z]:\\[^\s"']*Temp
 
 func scrubTmpPaths(s string) string {
 	return tmpPathRE.ReplaceAllString(s, "<path>")
+}
+
+// probeStderrForLog masks credential-shaped values, then scrubs tmp paths: a
+// child that echoes its auth configuration must not write a live secret to
+// the backend log, and the diagnostic text that explains the failure stays
+// intact.
+func probeStderrForLog(s string) string {
+	return scrubTmpPaths(routingerr.SanitizeCredentials(s))
 }
 
 // sanitizeEnvForAgent returns a child-process environment with agent-declared

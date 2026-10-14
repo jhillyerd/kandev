@@ -152,3 +152,105 @@ exit 1
 		t.Fatalf("client-visible failure code = %q, want the sanitized empty code", code)
 	}
 }
+
+// A failing child that echoes its auth configuration must not write a live
+// credential to the backend log, while the diagnostic text that explains the
+// failure stays intact.
+func TestProfileProbeFailureLogMasksCredentialShapedStderr(t *testing.T) {
+	if runtime.GOOS == windowsGOOS {
+		t.Skip("fixture uses a POSIX shell script")
+	}
+
+	binDir := t.TempDir()
+	writeProfileProbeFixture(t, filepath.Join(binDir, "npx"), `#!/bin/sh
+printf '%s\n' 'npm error code E401' 'npm error Incorrect or missing password: Bearer sk-abcdef0123456789abcdef0123456789' 'retry with api_key=ghp_abcdefghijklmnopqrstuvwxyz0123456789ABCDEF failed' 'cache location: /tmp/npm-cache-9f2c' >&2
+exit 1
+`)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	core, observed := observer.New(zapcore.DebugLevel)
+	executor := NewACPInferenceExecutor(zap.New(core))
+	response, err := executor.Probe(context.Background(), &ProbeRequest{
+		AgentID:        "managed-acp",
+		ProfileContext: true,
+		InferenceConfig: &InferenceConfigDTO{
+			Command: []string{"npx", "--yes", "--prefer-offline", "--prefix", "~/.kandev/managed-npm-runtime", "@scope/managed-acp@1.2.3"},
+			WorkDir: t.TempDir(),
+			Env:     map[string]string{"HOME": t.TempDir()},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Probe returned error: %v", err)
+	}
+	if response.Success {
+		t.Fatal("Probe unexpectedly succeeded")
+	}
+
+	entries := observed.FilterMessage("ACP profile probe failed").All()
+	if len(entries) != 1 {
+		t.Fatalf("profile probe failure entries = %d, want 1: %#v", len(entries), observed.All())
+	}
+	fields := make(map[string]string)
+	for _, field := range entries[0].Context {
+		fields[field.Key] = field.String
+	}
+	if stderr := fields["stderr"]; !strings.Contains(stderr, "npm error code E401") ||
+		strings.Contains(stderr, "sk-abcdef0123456789") ||
+		strings.Contains(stderr, "ghp_abcdefghijklmnopqrstuvwxyz") ||
+		!strings.Contains(stderr, "***") {
+		t.Fatalf("logged stderr = %q, want credentials masked with diagnostic text intact", stderr)
+	}
+	if stderr := fields["stderr"]; strings.Contains(stderr, "/tmp/npm-cache-9f2c") {
+		t.Fatalf("logged stderr = %q, want the tmp path scrubbed", stderr)
+	}
+}
+
+// The direct (non-profile) probe failure log carries the same child stderr
+// tail and therefore the same credential exposure as the profile site.
+func TestProbeFailureLogMasksCredentialShapedStderr(t *testing.T) {
+	if runtime.GOOS == windowsGOOS {
+		t.Skip("fixture uses a POSIX shell script")
+	}
+
+	binDir := t.TempDir()
+	writeProfileProbeFixture(t, filepath.Join(binDir, "npx"), `#!/bin/sh
+printf '%s\n' 'npm error code E401' 'npm error Incorrect or missing password: Bearer sk-abcdef0123456789abcdef0123456789' 'retry with api_key=ghp_abcdefghijklmnopqrstuvwxyz0123456789ABCDEF failed' 'cache location: /tmp/npm-cache-9f2c' >&2
+exit 1
+`)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	core, observed := observer.New(zapcore.DebugLevel)
+	executor := NewACPInferenceExecutor(zap.New(core))
+	response, err := executor.Probe(context.Background(), &ProbeRequest{
+		AgentID: "managed-acp",
+		InferenceConfig: &InferenceConfigDTO{
+			Command: []string{"npx", "--yes", "--prefer-offline", "--prefix", "~/.kandev/managed-npm-runtime", "@scope/managed-acp@1.2.3"},
+			WorkDir: t.TempDir(),
+			Env:     map[string]string{"HOME": t.TempDir()},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Probe returned error: %v", err)
+	}
+	if response.Success {
+		t.Fatal("Probe unexpectedly succeeded")
+	}
+
+	entries := observed.FilterMessage("ACP probe failed").All()
+	if len(entries) != 1 {
+		t.Fatalf("probe failure entries = %d, want 1: %#v", len(entries), observed.All())
+	}
+	fields := make(map[string]string)
+	for _, field := range entries[0].Context {
+		fields[field.Key] = field.String
+	}
+	if stderr := fields["stderr"]; !strings.Contains(stderr, "npm error code E401") ||
+		strings.Contains(stderr, "sk-abcdef0123456789") ||
+		strings.Contains(stderr, "ghp_abcdefghijklmnopqrstuvwxyz") ||
+		!strings.Contains(stderr, "***") {
+		t.Fatalf("logged stderr = %q, want credentials masked with diagnostic text intact", stderr)
+	}
+	if stderr := fields["stderr"]; strings.Contains(stderr, "/tmp/npm-cache-9f2c") {
+		t.Fatalf("logged stderr = %q, want the tmp path scrubbed", stderr)
+	}
+}
