@@ -100,7 +100,7 @@ function main() {
         ? {
             version: run("golangci-lint", ["--version"]),
             config: filesHash(["apps/backend/.golangci.yml"]),
-            path: run("golangci-lint", ["cache", "path"]),
+            path: process.env.GOLANGCI_LINT_CACHE,
           }
         : undefined;
     const values = cacheIdentity({

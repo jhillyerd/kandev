@@ -135,3 +135,74 @@ test("CLI identity failure leaves required commands runnable", async () => {
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("static CLI uses the configured linter cache without unsupported subcommands", async () => {
+  const {
+    mkdtempSync,
+    mkdirSync,
+    writeFileSync,
+    readFileSync,
+    rmSync,
+    copyFileSync,
+  } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { spawnSync } = await import("node:child_process");
+  const directory = mkdtempSync(`${tmpdir()}/go-static-cache-`);
+  try {
+    for (const subdir of [
+      "bin",
+      "apps/backend",
+      ".github/docker/ci-base",
+      ".github/actions/cache-go",
+      ".github/scripts",
+    ])
+      mkdirSync(`${directory}/${subdir}`, { recursive: true });
+    for (const file of [
+      "apps/backend/go.mod",
+      "apps/backend/go.sum",
+      "apps/backend/.golangci.yml",
+      ".github/docker/ci-base/Dockerfile",
+      ".github/actions/cache-go/action.yml",
+    ])
+      writeFileSync(`${directory}/${file}`, "fixture");
+    copyFileSync(
+      new URL("./go-cache-identity.mjs", import.meta.url),
+      `${directory}/.github/scripts/go-cache-identity.mjs`,
+    );
+    writeFileSync(
+      `${directory}/bin/go`,
+      `#!/bin/sh\ncat <<'JSON'\n${JSON.stringify({ ...identity.go, CGO_ENABLED: "0", CC: "cc" })}\nJSON\n`,
+      { mode: 0o755 },
+    );
+    // The pinned v2.9.0 command surface has cache clean/status, but no cache path.
+    writeFileSync(
+      `${directory}/bin/golangci-lint`,
+      '#!/bin/sh\n[ "$*" = "--version" ] || exit 1\necho "golangci-lint has version 2.9.0"\n',
+      { mode: 0o755 },
+    );
+    const result = spawnSync(
+      process.execPath,
+      [`${directory}/.github/scripts/go-cache-identity.mjs`],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${directory}/bin:${process.env.PATH}`,
+          GITHUB_WORKSPACE: directory,
+          GITHUB_OUTPUT: `${directory}/output`,
+          CACHE_FAMILY: "static",
+          RUNNER_OS: "Linux",
+          RUNNER_ARCH: "X64",
+          GOLANGCI_LINT_CACHE: "/tmp/lint cache",
+        },
+      },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const output = readFileSync(`${directory}/output`, "utf8");
+    assert.match(output, /enabled=true/);
+    assert.match(output, /lintPath=\/tmp\/lint cache/);
+    assert.match(output, /moduleKey=go-mod-v2-/);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

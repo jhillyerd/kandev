@@ -1165,9 +1165,8 @@ jobs:
     # Report aggregation queries GitHub history and downloads artifacts with the
     # job token, so it remains on a GitHub-hosted runner during the pilot.
     runs-on: ubuntu-latest
-    # Pre-baked image bundles Node 24, pnpm 9.15.9, and the Playwright CLI.
-    # `runtime` tag — no Go needed for merging blob reports.
-    container: ghcr.io/kdlbs/kandev-ci:runtime-latest
+    # Published and replay-verified Node/pnpm image; browsers stay in shard jobs.
+    container: ghcr.io/kdlbs/kandev-ci@sha256:599d8a800bdd141f99924d9503988843c9d6ea386bfc57d04c83f1aa17f579aa
     # 8 min (was 5) — the merge now also emits the JSON report used to
     # cross-check the flake count, and the flake baseline lookup walks recent
     # main runs looking for a published history artifact.
@@ -1201,16 +1200,13 @@ jobs:
         working-directory: apps
         run: pnpm install --frozen-lockfile
 
-      # The published runtime image may predate the report-tool dependency;
-      # keep older images usable while the image rebuild adds unzip permanently.
-      - name: Ensure timing report tools are installed
+      - name: Verify timing report tools
         if: needs.changes.outputs.run == 'true'
         run: |
-          if ! command -v unzip >/dev/null 2>&1; then
-            apt-get update
-            apt-get install -y --no-install-recommends unzip
-            rm -rf /var/lib/apt/lists/*
-          fi
+          node --version
+          pnpm --version
+          command -v unzip
+          command -v tar
 
       - name: Download blob reports
         if: needs.changes.outputs.run == 'true'

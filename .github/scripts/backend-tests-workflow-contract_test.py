@@ -2,6 +2,8 @@
 """Contract tests for persistence gates and bounded backend test summaries."""
 
 import json
+import os
+import textwrap
 import re
 import shlex
 import subprocess
@@ -31,6 +33,39 @@ class BackendTestsWorkflowContractTest(unittest.TestCase):
     def setUp(self) -> None:
         self.workflow = WORKFLOW.read_text(encoding="utf-8")
         self.base_image_workflow = BASE_IMAGE_WORKFLOW.read_text(encoding="utf-8")
+
+    def test_required_go_commands_run_after_optional_cache_failure(self):
+        action = (REPO_ROOT / ".github/actions/cache-go/action.yml").read_text()
+        cache_steps = action.split("    - name: ")[2:]
+        self.assertEqual(len(cache_steps), 3)
+        build = step_block(self.workflow, "Build").split("        run: ", 1)[1].strip()
+        tests = textwrap.dedent(step_block(self.workflow, "Run tests").split("        run: |\n", 1)[1])
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", directory], check=True)
+            (root / "go.mod").write_text("module cacheprobe\ngo 1.20\n")
+            package = root / "cmd/kandev"
+            package.mkdir(parents=True)
+            (package / "main.go").write_text("package main\nfunc main() {}\n")
+            (package / "main_test.go").write_text('package main\nimport "testing"\nfunc TestRequired(t *testing.T) {}\n')
+            checksum = subprocess.check_output(["cksum"], input="cacheprobe/cmd/kandev\n", text=True)
+            env = {**os.environ, "SHARD_INDEX": str(int(checksum.split()[0]) % 2), "SHARD_NUMBER": "1"}
+            # Offline runner-boundary probe: failure belongs to the external cache
+            # action. Honor its declared continue policy, then execute real Go work.
+            # Hosted post-save behavior remains a separate acceptance condition.
+            for cache_status in (0, 1):
+                for cache_step in cache_steps:
+                    restored = subprocess.run(["bash", "-c", f"exit {cache_status}"], cwd=root)
+                    if restored.returncode:
+                        self.assertIn("continue-on-error: true", cache_step)
+                for name, script in (("Build", build), ("Run tests", tests)):
+                    self.assertNotIn("        if:", step_block(self.workflow, name))
+                    result = subprocess.run(["bash", "-euo", "pipefail", "-c", script], cwd=root,
+                                            env=env, capture_output=True, text=True, timeout=60)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertTrue((root / "kandev").is_file())
+                events = [json.loads(line) for line in (root / "test-results-1.json").read_text().splitlines()]
+                self.assertTrue(any(event.get("Test") == "TestRequired" and event["Action"] == "pass" for event in events))
 
     def test_optional_cache_cannot_gate_required_verification(self):
         action = (REPO_ROOT / ".github/actions/cache-go/action.yml").read_text()
