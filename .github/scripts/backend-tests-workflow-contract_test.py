@@ -32,6 +32,18 @@ class BackendTestsWorkflowContractTest(unittest.TestCase):
         self.workflow = WORKFLOW.read_text(encoding="utf-8")
         self.base_image_workflow = BASE_IMAGE_WORKFLOW.read_text(encoding="utf-8")
 
+    def test_optional_cache_cannot_gate_required_verification(self):
+        action = (REPO_ROOT / ".github/actions/cache-go/action.yml").read_text()
+        self.assertEqual(action.count("continue-on-error: true"), 4)
+        self.assertEqual(action.count("uses: actions/cache@"), 3)
+        self.assertNotIn("actions/cache/save@", action)
+        self.assertEqual(self.workflow.count("uses: ./.github/actions/cache-go"), 3)
+        for family in ("static", "test-${{ matrix.shard }}", "ambient"):
+            self.assertIn("family: " + family, self.workflow)
+        for name in ("Build", "Run tests", "Run GitLab-facing packages under a poisoned host environment"):
+            self.assertNotIn("if:", step_block(self.workflow, name))
+        self.assertNotIn("go-${{ runner.os }}-", self.workflow)
+
     def test_postgres_16_uses_fixed_catalog_commands(self) -> None:
         self.assertNotIn("PostgresDSNFromEnv", self.workflow)
         self.assertNotIn("mapfile -t postgres_packages", self.workflow)
