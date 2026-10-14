@@ -7,10 +7,17 @@ depends_on: []
 plan: "plan.md"
 requirements:
   - REQ-PLUGINS-PLUGIN-SHORTCUT-SETTINGS-001
+  - REQ-TASKS-SUBTASK-DIALOG-PARENT-DEFAULTS-001
 acceptance_criteria:
   - AC-PLUGINS-PLUGIN-SHORTCUT-SETTINGS-001.5
+  - AC-TASKS-SUBTASK-DIALOG-PARENT-DEFAULTS-001.1
+  - AC-TASKS-SUBTASK-DIALOG-PARENT-DEFAULTS-001.2
+  - AC-TASKS-SUBTASK-DIALOG-PARENT-DEFAULTS-001.3
+  - AC-TASKS-SUBTASK-DIALOG-PARENT-DEFAULTS-001.4
+  - AC-TASKS-SUBTASK-DIALOG-PARENT-DEFAULTS-001.5
 system_design:
   - ../../specs/plugins/system-design/plugin-shortcut-settings.md
+  - ../../specs/tasks/system-design/subtask-dialog-parent-defaults.md
 ---
 
 # Task 01: Match Accepted Chords
@@ -124,6 +131,8 @@ const artifacts = [
   'docs/specs/plugins/system-design/plugin-shortcut-settings.md',
   'docs/plans/shortcut-conflict-dispatch/plan.md',
   'docs/plans/shortcut-conflict-dispatch/task-01-match-accepted-chords.md',
+  'docs/specs/tasks/requirements/subtask-dialog-parent-defaults.md',
+  'docs/specs/tasks/system-design/subtask-dialog-parent-defaults.md',
 ];
 const source = [
   'apps/web/lib/keyboard/shortcut-conflicts.ts',
@@ -133,10 +142,13 @@ const source = [
   'apps/web/hooks/use-plugin-shortcuts.test.ts',
   'apps/web/components/settings/keyboard-shortcuts-card.test.tsx',
   'apps/web/components/settings/plugins/plugin-shortcuts-card.test.tsx',
+  'apps/web/components/task/new-subtask-dialog.tsx',
+  'apps/web/components/task/new-subtask-dialog.test.tsx',
+  'apps/web/components/task/new-subtask-dialog-context.test.ts',
 ];
 const changedFiles = [...artifacts, ...source].map(filename => ({
   filename,
-  status: filename.startsWith('docs/plans/shortcut-conflict-dispatch/') ? 'added' : 'modified',
+  status: filename.startsWith('docs/plans/shortcut-conflict-dispatch/') || filename.endsWith('/subtask-dialog-parent-defaults.md') || filename.endsWith('/new-subtask-dialog.test.tsx') ? 'added' : 'modified',
 }));
 const fileContents = Object.fromEntries(artifacts.map(p => [p, fs.readFileSync(p, 'utf8')]));
 const result = validateCoverage({ changedFiles, fileContents });
@@ -223,7 +235,7 @@ outside simulated keydown evidence.
   Test exclusions and all selectors remained unchanged.
 - `python3 scripts/list-docs.py validate` passed (382 decisions, 1609 specs);
   `python3 scripts/lint-spec-files.py --all` passed; both working/index
-  `git diff --check` commands passed. The exact coverage API heredoc above
+  `git diff --check` commands passed. The then-current coverage API heredoc
   returned `ok: true`, `errors: []` for the actual 11 owned paths.
 - Existing callback ordering, editor rules, fixed reservations, override
   behavior, matcher compatibility, save flows, and phone composition remain
@@ -232,3 +244,163 @@ outside simulated keydown evidence.
 - All local native commands were joined and retained as external operational
   receipts with actual exits and current owned-group absence. Failed RED and
   lint receipts were kept. No private qualification source was read or replayed.
+
+
+## Required-CI correction addendum
+
+Original Results remain completed evidence. ROOT reviewed the precise Tasks pair
+and this same work order, then explicitly released the required-CI selected-parent
+correction and its scoped checks in the same primary session. Corrective Results
+below record the completed implementation; merge remains separately authorized.
+The original hosted observer has actually joined (native 38891, chunk c9e81b,
+exit 1); its owned group 2392849 is absent. Retain its original clock/report,
+not a replacement observer. Delivery/retry bookkeeping stays external.
+
+### Source responsibility and boundaries
+
+`apps/web/components/task/new-subtask-dialog.tsx` owns the correction.
+Use the actual `parentTaskId` to read the canonical `taskOverview.byId` record,
+following the existing canonical-first selector in `task-page-content.tsx`;
+retain a compatibility lookup only if needed for existing board-only callers.
+Do not change that shared selector, global store, task inventories, or fetch
+unrelated lists. The active task/session must never substitute for the target.
+
+Preserve primary selection: explicit `primarySessionId`, otherwise a selected
+parent session marked `is_primary`. Secondary session ordering must not select
+another default. Repository order/branch and primary-session fallback remain
+as currently resolved. The existing `useTaskSessions(parentTaskId)` owns reads,
+loaded/empty/error state, refresh, and session options; its implementation is
+read-only. Existing active-parent behavior is a control.
+
+Change mount-only seeding to local, one-time delayed initial seeding. Seed the
+repository when known only while untouched (reuse `repositoriesDirty`, including
+intentional removal, and respect existing/remote rows); seed profile only while
+untouched; resolve initial workspace mode once primary context is available or
+the existing session read settles loaded/error. Track deliberate profile/mode
+choices locally through existing handlers, including clearing a choice. Later
+refreshes must not reseed. The dialog caller's submission fallback must respect
+explicit profile clearing. Source interactions (existing repository dirty/remote
+mode/remote-row state) lock the initial new-workspace mode so late worktree
+data cannot discard a selected or removed source. Verify the actual `createTask`
+request for profile clearing, repository choice/removal, and remote paste, keeping the
+shared submit hook and ordinary omitted-profile backend defaulting unchanged.
+No generic revisions/coordinator policy.
+
+This is smaller than full-context readiness gating: the existing form stays
+mounted and editable during reads. No new remount/key, spinner, visible copy,
+geometry, submission contract, prompt-copy policy, or forced active-parent
+selection. Entered title/prompt and repo/profile/workspace choices survive delayed
+success. Loaded no-session, error, and missing-parent cases remain usable with
+existing empty/default controls and validation, never indefinitely loading.
+`new-subtask-form-state.ts`, shared form parts/handlers, session hooks, backend,
+and sidebar action callers remain read-only unless a demonstrated bounded
+failure requires revising this design first.
+
+### Independent regression and controls
+
+Add `apps/web/components/task/new-subtask-dialog.test.tsx`, rendering the real
+dialog, form state, and existing form controls against a reactive store. Stub
+external data/transport boundaries only, not parent lookup or seeding. Before
+production edits, prove RED for a selected non-active parent present only in
+`taskOverview.byId`, with a different active kanban task and delayed successful
+selected-parent sessions. Observe the actual repository chip, profile, workspace
+mode, and retained entered title/prompt. Use explicit expected IDs/labels.
+
+Minimal controls: already-loaded active parent; delayed primary plus differently
+configured secondary (primary wins); loaded no-session and missing/error context
+(form remains usable); deliberate repo removal/replacement, profile, and workspace
+choice made before delayed success remain unchanged, as do title/prompt. A later
+refresh does not overwrite initial/user values. Extend the existing
+`new-subtask-dialog-context.test.ts` only for needed primary-selection controls.
+Trace tests to AC-TASKS-SUBTASK-DIALOG-PARENT-DEFAULTS-001.1–.5:
+canonical-only selected parent (.1), initial primary/repository/mode defaults
+(.2), entered work/explicit choices/refresh (.3), missing/error/no-session (.4),
+and existing desktop/phone controls (.5). Office AC .6 is not correction coverage.
+
+### Sequential checks after corrective release
+
+Use the existing toolchain/dependencies and one local-heavy lease. Retain actual
+RED/GREEN exits and joins; then run only the four affected component/state suites:
+
+```bash
+pnpm exec vitest run components/task/new-subtask-dialog.test.tsx components/task/new-subtask-dialog-context.test.ts components/task/new-subtask-form-state.test.ts components/task/new-subtask-form-parts.test.tsx --maxWorkers=1
+pnpm exec eslint --max-warnings 0 components/task/new-subtask-dialog.tsx components/task/new-subtask-dialog.test.tsx components/task/new-subtask-dialog-context.test.ts
+NODE_OPTIONS=--max-old-space-size=8192 pnpm run typecheck
+pnpm e2e:run --host --shards 1 --project mobile-chrome tests/task/mobile-sidebar-task-actions.spec.ts -- --grep 'Mobile sidebar task actions.*uses the selected non-active parent defaults for mobile subtasks$' --retries=0 --workers=1
+```
+
+The grep omits a start anchor because Playwright includes project/file titles
+before the suite name; its selected scenario and end anchor remain exact.
+Run the mobile command once after GREEN under the normal managed build/run/cleanup
+runner, preserving the original assertion and timeouts; no test-file edit is
+planned. Do not replay the unchanged 178 keyboard tests. Use actual owned paths
+for scoped lint, normal staged `i18n:ratchet`, active hooks, whitespace checks,
+coverage API, catalog validation, and all-spec lint. Coverage dry-run includes
+the existing four artifacts, this correction's related Tasks requirement/design
+pair, and the three projected correction source/test paths.
+The UI correction needs a bounded substantive assessment of that diff; completed
+keyboard reports remain reusable. No routine full review requests or optional
+polish gate. Append actual corrective Results only after execution.
+
+
+### Initial addendum design checks
+
+Catalog validation (382 decisions, 1609 specs), all-spec lint, working/index
+whitespace checks, and projected owning coverage passed (`ok: true`, `errors: []`).
+Native 93561 joined at 3a4cc9, exit 0; its current owned process group is absent.
+No implementation, permanent test, heavy command, hook, commit, or push ran.
+
+
+The precise Tasks-pair amendment passed catalog validation (382 decisions,
+1611 specs), all-spec lint, whitespace checks, and the updated coverage dry-run
+(`ok: true`, `errors: []`) against the final requirement/design references.
+Native 42329 joined at ac6a5b, exit 0; current owned group absent. Only the
+related Tasks pair and existing manifest/order changed; implementation remains
+pending a later explicit corrective release and local-heavy lease.
+
+
+## Corrective Results
+
+- Independent rendered RED used the real dialog, form state, existing controls,
+  and reactive canonical task inventory retained through the real store action.
+  `vitest run components/task/new-subtask-dialog.test.tsx components/task/new-subtask-dialog-context.test.ts --maxWorkers=1`
+  exposed four expected failures and ten passing controls; GREEN passed 14/14.
+  Earlier fixture setup/hydration attempts are retained separately as setup
+  evidence, not substituted for the qualified canonical-only parent regression.
+- The actual create boundary exposed a cleared selector still submitting the
+  parent profile (RED one failure plus one passing normal-default control).
+  The dialog caller now removes that fallback after an explicit profile choice;
+  the same selected tests passed GREEN 2/2. Shared submit logic stays unchanged.
+- Actual selected and pasted source requests exposed late worktree data switching
+  to inheritance and omitting repositories (RED three failures plus one untouched
+  auto-inheritance control). Existing source-dirty/remote state now settles the
+  initial new-workspace mode. Request regressions preserve selected, removed, and
+  pasted sources, along with explicit mode and profile choices. The pasted GitHub
+  request retains its existing `github_url` field; an incorrect test-field
+  expectation was corrected without changing conversion or assertions on source.
+- The final exact four-file Vitest command passed 22/22 tests. Scoped ESLint on
+  the three actual owned TS/TSX paths passed with zero warnings. Initial duplicate
+  test literals/nested ternary lint feedback was corrected within the same tests.
+- Current `NODE_OPTIONS=--max-old-space-size=8192 pnpm run typecheck` passed after
+  the final source guard. An initial failure in owned test fixture types was
+  corrected with existing branded-ID constructors, optional-map access, the sparse
+  hydration cast, and the supported Testing Library options. Failed receipts were
+  retained; necessary reruns followed those actual errors and the later source fix.
+- The exact managed mobile E2E command above passed its original scenario once
+  (1 test, one worker, zero retries, normal host build/run/cleanup). Assertions,
+  timeouts, test file, and fixture were unchanged. It ran before the later manual
+  source-interaction guard; that guard is inactive in this exact no-source-edit
+  flow. Final rendered/request tests cover the material later diff, so no second
+  runtime build or E2E replay was performed. The grep start anchor was removed
+  because Playwright prepends project/file titles; the selected scenario is unchanged.
+- Production ownership is only `new-subtask-dialog.tsx`; the two dialog test paths
+  are owned. Shared form state/parts, submit/session hooks, sidebar callers, backend,
+  keyboard changes, and the E2E test/fixture remain unchanged. No new product copy,
+  layout, public API, profile eligibility, or persistence change was introduced.
+
+- Normal staged `pnpm run i18n:ratchet` passed with all owned paths in the index
+  and normal selectors/exclusions (four modified production candidates clean).
+  Catalog validation passed (382 decisions, 1611 specs), all-spec lint and working/
+  staged whitespace checks passed, and the updated six-artifact/ten-source coverage
+  API preflight returned `ok: true`, `errors: []`. Normal hooks and publication
+  receipts remain in the external operational checkpoint.

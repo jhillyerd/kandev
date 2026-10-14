@@ -3,8 +3,10 @@ created: 2026-10-14
 status: complete
 requirements:
   - REQ-PLUGINS-PLUGIN-SHORTCUT-SETTINGS-001
+  - REQ-TASKS-SUBTASK-DIALOG-PARENT-DEFAULTS-001
 system_design:
   - ../../specs/plugins/system-design/plugin-shortcut-settings.md
+  - ../../specs/tasks/system-design/subtask-dialog-parent-defaults.md
 legacy_specs: []
 ---
 
@@ -158,3 +160,46 @@ layout/E2E, matcher, or persistence changes were needed.
   partial core overlap. Platform-specific matching would break compatibility.
 - Simulated events establish DOM routing only. Do not claim physical OS key
   delivery or reinterpret another process's receipt as a local test run.
+
+
+## Required-CI correction addendum
+
+The original shortcut implementation and its recorded checks are complete.
+Task 01 is reopened only for the actual required-CI mobile subtask defect in
+PR #4496. Run 38600147585, E2E Shard 4/14 job 115979368028 failed the existing
+selected non-active parent scenario at `mobile-sidebar-task-actions.spec.ts:860`
+on all four attempts: the parent repository chip never appeared. Trace data
+shows successful repository and primary-session responses, while the selected
+parent exists in canonical task inventory but not the active kanban array.
+The four implicated blobs match candidate `bbff3685`, tested CI merge
+`2a8539ad`, and main `71ada983`; source-supported cause still needs local RED.
+External evidence: `e2e-shard4-triage.json` under the implementation receipt
+prefix recorded in Task 01's delivery checkpoint. Recovered poll failures are
+separate; shard 13's overall test deadline is outside this addendum.
+
+The related [Tasks requirement](../../specs/tasks/requirements/subtask-dialog-parent-defaults.md)
+and [Tasks design](../../specs/tasks/system-design/subtask-dialog-parent-defaults.md)
+precisely own this correction's selected-parent defaults and late-data behavior.
+The [Office parent/child design](../../specs/office/system-design/tasks-01.md#b-parent--child-handoffs)
+remains read-only background. The active [mobile task-action contract](../../specs/ui/requirements/mobile-task-chrome.md)
+retains the existing task-row entry; no parallel UI contract is added.
+
+Own only `new-subtask-dialog.tsx` plus its rendered/context regressions.
+Read `taskOverview.byId[parentTaskId]` using the existing canonical-first lookup
+pattern in `task-page-content.tsx`. Seed untouched initial repository, profile,
+and workspace mode once when selected-parent context arrives. Prefer delayed
+seeding over blocking the entire form: existing session loaded/error flags can
+settle empty/error context without a new spinner or discarding entered text.
+Keep all existing translated controls, geometry, session hooks, and submissions.
+No public documentation change follows from restoring these existing defaults.
+
+The [same work order](task-01-match-accepted-chords.md#required-ci-correction-addendum)
+defines the completed scoped correction and verification. Implementation followed
+ROOT review and a later explicit corrective request in the same primary session.
+
+
+The subtask correction passed the final four affected suites (22 tests), scoped
+ESLint, current 8 GiB typecheck, and the original managed mobile scenario once
+with one worker and zero retries. The later source-choice guard is inactive in
+that unchanged mobile flow; actual create-request regressions cover its changes.
+See Task 01's corrective Results for qualification and bounded verification.
