@@ -90,6 +90,13 @@ comment-selection tests must prove span boundaries do not change offsets. Only
 marked motion spans use the motion renderer; unmarked spans retain the caller
 renderer.
 
+Every script animation owner releases its handle with `releaseAnimation` from
+`@kandev/ui/animation-utils`: cancel, then set `effect` to null. macOS WKWebView
+keeps canceled or finished script animations alive, and a live effect retains its
+target element after removal. Detaching the effect lets the removed row, span,
+and its subtree be collected. This applies to chat entrance and text motion and
+to the shared spinner, pulse, and settings-search motion owners.
+
 ## Scroll integration
 
 `useAutoScroll` and its helpers in `message-list-native-scroll.ts` remain the

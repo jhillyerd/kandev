@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef } from "react";
+import { releaseAnimation } from "@kandev/ui/animation-utils";
 
 const MOTION_SELECTOR = "[data-settings-search-motion-key]";
 const MOTION_EASING = "cubic-bezier(0.2, 0, 0, 1)";
@@ -40,7 +41,8 @@ export function useSettingsSearchMotion(layoutKey: string) {
     }
 
     for (const entry of entries) {
-      animations.get(entry.key)?.cancel();
+      const previous = animations.get(entry.key);
+      if (previous) releaseAnimation(previous);
       animations.delete(entry.key);
       const previousTop = previousPositionsRef.current.get(entry.key);
       const animation = animateEntry(entry, previousTop);
@@ -99,13 +101,13 @@ function animateEntry(entry: MotionEntry, previousTop: number | undefined): Anim
 function cancelRemovedAnimations(animations: Map<string, Animation>, activeKeys: Set<string>) {
   for (const [key, animation] of animations) {
     if (activeKeys.has(key)) continue;
-    animation.cancel();
+    releaseAnimation(animation);
     animations.delete(key);
   }
 }
 
 function cancelAnimations(animations: Map<string, Animation>) {
-  for (const animation of animations.values()) animation.cancel();
+  for (const animation of animations.values()) releaseAnimation(animation);
   animations.clear();
 }
 
