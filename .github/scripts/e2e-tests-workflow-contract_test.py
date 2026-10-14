@@ -120,6 +120,20 @@ cat "${FAKE_DOCKER_MANIFEST}"
             attempts = int(count_file.read_text(encoding="utf-8")) if count_file.exists() else 0
             return result, attempts
 
+    def test_performance_probes_are_manual_bounded_and_cannot_publish(self):
+        workflow = IMAGE_WORKFLOW.read_text()
+        producer = job_block(workflow, "build-and-push", "report-performance")
+        self.assertIn("inputs.performance_probe != 'report' && inputs.performance_probe != 'go'", producer)
+        for job, mode in (("report-performance", "report"), ("go-performance", "go")):
+            block = job_block(workflow, job, "go-performance") if mode == "report" else workflow.split("  go-performance:\n")[1]
+            self.assertIn("github.event_name == 'workflow_dispatch' && inputs.performance_probe == '" + mode + "'", block)
+            self.assertIn("max-parallel: 1", block)
+            self.assertNotIn("packages: write", block)
+            self.assertNotIn("docker/login-action", block)
+            self.assertNotIn("push: true", block)
+        self.assertIn("sample: [1, 2, 3]", workflow)
+        self.assertIn("sample: [0, 1, 2, 3]", workflow)
+
     def test_report_consumer_uses_verified_digest_and_preinstalled_tools(self):
         report = E2E_WORKFLOW.read_text().split("  e2e-report:\n", 1)[1]
         self.assertIn("container: ghcr.io/kdlbs/kandev-ci@sha256:599d8a800bdd141f99924d9503988843c9d6ea386bfc57d04c83f1aa17f579aa", report)
