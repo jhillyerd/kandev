@@ -73,8 +73,9 @@ export async function buildKubernetesWorkerImages(
       );
       buildImage(target, recipeTag, pins.baseImage, pins.pnpmVersion);
       buildHarnessImage(recipeTag, harnessTag);
-      loadImage(cluster, harnessTag);
     }
+    const harnessTags = built.filter((image) => image.kind === "harness").map((image) => image.tag);
+    loadImages(cluster, harnessTags);
   } catch (error) {
     await disposeImages(built);
     throw error;
@@ -171,8 +172,8 @@ USER 1000
   }
 }
 
-function loadImage(cluster: KubernetesCluster, tag: string): void {
-  execFileSync(cluster.kindBin, ["load", "docker-image", tag, "--name", cluster.name], {
+function loadImages(cluster: KubernetesCluster, tags: string[]): void {
+  execFileSync(cluster.kindBin, ["load", "docker-image", ...tags, "--name", cluster.name], {
     timeout: 300_000,
     stdio: process.env.E2E_DEBUG ? "inherit" : ["ignore", "ignore", "inherit"],
   });

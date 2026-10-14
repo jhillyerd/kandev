@@ -438,6 +438,13 @@ buys time, it does not remove the race, and when it does fail it tells you
 nothing about what was missing. Three of the four flakes measured in one recent
 green CI run were exactly this, with budgets of 5s, 10s and 30s.
 
+A mock turn that must remain active across a restart can use
+`e2e:await_file("/absolute/release-marker")` between its started and completed
+messages. Put the unique marker under the worker's `backend.tmpDir`, write it
+only after the in-flight assertions, and also release it in `finally`. The
+wait honors prompt cancellation; the worker's temp-directory cleanup owns the
+marker. The survival restart specs demonstrate this controlled completion.
+
 `helpers/causal-waits.ts` has one primitive per transport the app actually uses.
 Arm the wait **before** the action, await it after, then assert the UI with its
 default timeout:
@@ -799,8 +806,9 @@ and joins their required results:
 - `e2e-containers` — a 6-entry matrix executing the generated container
   manifests and requiring Docker. A shard assigned `tests/kubernetes/**`
   installs checksum-pinned Kind/kubectl, then performs exact-name teardown.
-  Kubernetes files are scheduled together to share one worker-scoped Kind
-  cluster; their per-test workload cleanup and optional scenario gates remain.
+  Shared Kubernetes control-plane files are scheduled together to reuse their
+  worker-scoped Kind cluster. The worker-image lifecycle file owns one existing
+  container job; per-test cleanup and optional scenario gates remain.
 - `e2e-kubernetes-compatibility` — a two-version matrix running the single
   API-only compatibility smoke on Kubernetes `v1.34.8` and `v1.36.1`.
 - `e2e-report` — merges blob reports, publishes timing/retry artifacts, and

@@ -11,6 +11,8 @@ import {
   type TimingProfile,
 } from "./e2e-timings";
 
+const WORKER_PRESETS_FILE = "tests/kubernetes/kubernetes-worker-presets.spec.ts";
+
 export const SHARD_MANIFEST_VERSION = 1;
 export const NORMAL_SHARD_COUNT = 28;
 export const CONTAINER_SHARD_COUNT = 6;
@@ -245,7 +247,8 @@ function schedulingGroups(units: PlannedUnit[], cohort: Cohort): PlannedUnit[][]
     if (
       cohort === "containers" &&
       unit.project === "containers" &&
-      unit.file.startsWith("tests/kubernetes/")
+      unit.file.startsWith("tests/kubernetes/") &&
+      unit.file !== WORKER_PRESETS_FILE
     ) {
       kind.push(unit);
     } else {
@@ -261,6 +264,45 @@ function schedulingGroups(units: PlannedUnit[], cohort: Cohort): PlannedUnit[][]
 
 function groupSeconds(units: PlannedUnit[]): number {
   return units.reduce((total, unit) => total + unit.estimatedSeconds, 0);
+}
+
+function allocateShards(plannedUnits: PlannedUnit[], cohort: Cohort, shardCount: number): Shard[] {
+  const shards: Shard[] = Array.from({ length: shardCount }, (_, index) => ({
+    index: index + 1,
+    predictedSeconds: 0,
+    files: [],
+    units: [],
+  }));
+
+  // Worker image setup is measured outside native test-body durations.
+  const workerUnit =
+    cohort === "containers"
+      ? plannedUnits.find(
+          (unit) => unit.project === "containers" && unit.file === WORKER_PRESETS_FILE,
+        )
+      : undefined;
+  const workerShard = workerUnit && shardCount > 1 ? shards.at(-1) : undefined;
+  for (const group of schedulingGroups(plannedUnits, cohort)) {
+    const candidates =
+      workerShard && group[0] === workerUnit
+        ? [workerShard]
+        : shards.filter((shard) => shard !== workerShard);
+    const shard = candidates.reduce((lightest, candidate) => {
+      if (candidate.predictedSeconds < lightest.predictedSeconds) return candidate;
+      return candidate.index < lightest.index ? candidate : lightest;
+    }, candidates[0]!);
+    shard.units.push(...group);
+    shard.predictedSeconds += groupSeconds(group);
+    for (const unit of group) {
+      if (!shard.files.includes(unit.file)) shard.files.push(unit.file);
+    }
+  }
+  for (const shard of shards) {
+    shard.units.sort((left, right) => left.id.localeCompare(right.id));
+    shard.files.sort();
+  }
+
+  return shards;
 }
 
 export function createShardPlan(
@@ -284,28 +326,7 @@ export function createShardPlan(
       options.changedFileMultiplier ?? CHANGED_FILE_MULTIPLIER,
     ),
   );
-  const shards: Shard[] = Array.from({ length: options.shardCount }, (_, index) => ({
-    index: index + 1,
-    predictedSeconds: 0,
-    files: [],
-    units: [],
-  }));
-
-  for (const group of schedulingGroups(plannedUnits, options.cohort)) {
-    const shard = shards.reduce((lightest, candidate) => {
-      if (candidate.predictedSeconds < lightest.predictedSeconds) return candidate;
-      return candidate.index < lightest.index ? candidate : lightest;
-    }, shards[0]!);
-    shard.units.push(...group);
-    shard.predictedSeconds += groupSeconds(group);
-    for (const unit of group) {
-      if (!shard.files.includes(unit.file)) shard.files.push(unit.file);
-    }
-  }
-  for (const shard of shards) {
-    shard.units.sort((left, right) => left.id.localeCompare(right.id));
-    shard.files.sort();
-  }
+  const shards = allocateShards(plannedUnits, options.cohort, options.shardCount);
 
   const predictedSeconds = shards.reduce((total, shard) => total + shard.predictedSeconds, 0);
   const targetSeconds = options.shardCount > 0 ? predictedSeconds / options.shardCount : 0;

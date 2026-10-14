@@ -125,8 +125,9 @@ Container global setup owns one temporary canonical helper manifest per
 Playwright invocation. Worker bundles and caches remain isolated and validate
 the shared identity and Linux helper digest before using it. Teardown removes
 the shared artifact; standalone fixture calls still generate their own manifest.
-Kind receives only the final worker harness images, retaining all real recipe
-builds and their layers while avoiding unused intermediate image transfers.
+Kind receives only the final worker harness images in one batch, retaining all
+real recipe builds and their layers while exporting their shared base once.
+The pinned Kind loader accepts multiple image names and saves one archive.
 
 E2E Go caches save source-specific snapshots under their existing job-role and
 dependency prefixes. Later sources restore the latest compatible snapshot;
@@ -134,6 +135,13 @@ native Go cache validation remains authoritative. Include snapshot compression,
 upload and restore in measurements and retain the existing trusted cache scope.
 Windows additionally snapshots only native GOCACHE by suite and source, retaining
 Setup-Go's module cache. Process cohorts share one compiled-package cache.
+
+Sidebar resource modes share an optional role/dependency Go module and build
+cache. Native Go cache validation still decides which compilation can be reused.
+Only a successful memory-1 mode saves the common cache; every mode executes its
+original measurement command regardless of cache outcomes. Runtime child-process
+isolation, memory budgets and evidence artifacts do not depend on compilation
+cache warmth. Cache restore/save failures remain optional setup outcomes.
 
 The four ordinary Go buckets preserve native discovery and stable hashing, with
 three measured heavy packages assigned to the otherwise light third bucket:
@@ -179,9 +187,13 @@ records the revised fan-out boundary.
 ### Container fixture affinity
 
 Container scheduling treats the `containers` project's `tests/kubernetes/`
-files as an atomic group because they share expensive worker-scoped Kind setup.
-The group retains each file's native catalog identity and estimate; its scheduling
-weight is their sum. Other files retain independent LPT placement. This changes
+files as an atomic group because they share expensive worker-scoped Kind setup,
+except the image-heavy kubernetes-worker-presets.spec.ts file, which owns one
+existing shard when multiple shards are available. Its worker setup is absent
+from native per-test timings. The remaining files balance across the other
+shards; one-shard runs retain the complete catalog. The group retains each file's native catalog
+identity and estimate; its scheduling weight is their sum. Other files retain
+independent LPT placement. This changes
 placement only: six container jobs and one worker per job remain fixed, and the
 full-worker opt-in scenarios remain in the manifest with their existing gates.
 Verify the grouped real suite's cleanup and elapsed time before adoption.

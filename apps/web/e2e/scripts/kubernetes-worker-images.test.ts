@@ -31,7 +31,7 @@ beforeEach(() => {
 const fs = require("node:fs"), path = require("node:path");
 const command = path.basename(process.argv[1]), args = process.argv.slice(2);
 fs.appendFileSync(process.env.IMAGE_COMMAND_LOG, JSON.stringify({ command, args }) + "\\n");
-if (process.env.FAIL_IMAGE_TRANSFER === "1" && command === "kind" && args[2].endsWith("node-pnpm-harness")) process.exit(1);
+if (process.env.FAIL_IMAGE_TRANSFER === "1" && command === "kind" && args.some(arg => arg.endsWith("node-pnpm-harness"))) process.exit(1);
 `;
   for (const name of ["docker", "kind"]) {
     fs.writeFileSync(path.join(root, "tools", name), command, { mode: 0o755 });
@@ -85,12 +85,17 @@ it("builds all recipes and loads only final images referenced by worker presets"
       .map(({ args }) => args[args.indexOf("--target") + 1]),
   ).toEqual(["minimal", "node-pnpm", "python"]);
   const loaded = all.filter(({ command }) => command === "kind");
-  expect(loaded.map(({ args }) => args[2])).toEqual([
+  expect(loaded).toHaveLength(1);
+  expect(loaded[0]!.args).toEqual([
+    "load",
+    "docker-image",
     images.minimal,
     images.nodePnpm,
     images.python,
+    "--name",
+    "owned-cluster",
   ]);
-  expect(loaded.every(({ args }) => args.slice(3).join(" ") === "--name owned-cluster")).toBe(true);
+  expect(all.indexOf(loaded[0]!)).toBeGreaterThan(all.indexOf(built.at(-1)!));
   const removed = all.filter(({ args }) => args[0] === "image" && args[1] === "rm");
   expect(removed).toHaveLength(6);
   expect(new Set(removed.map(({ args }) => args[3]))).toEqual(
@@ -104,8 +109,8 @@ it("cleans owned images and propagates a failed final transfer", () => {
   const all = commands();
   const built = all.filter(({ command, args }) => command === "docker" && args[0] === "build");
   const removed = all.filter(({ args }) => args[0] === "image" && args[1] === "rm");
-  expect(built).toHaveLength(4);
-  expect(removed).toHaveLength(4);
+  expect(built).toHaveLength(6);
+  expect(removed).toHaveLength(6);
   expect(new Set(removed.map(({ args }) => args[3]))).toEqual(
     new Set(built.map(({ args }) => args[args.indexOf("--tag") + 1])),
   );

@@ -161,6 +161,12 @@ describe("duration-aware shard planning", () => {
         },
         {
           project: "containers",
+          file: "tests/kubernetes/kubernetes-worker-presets.spec.ts",
+          fileHash: "worker",
+          testCount: 1,
+        },
+        {
+          project: "containers",
           file: "tests/docker/launch.spec.ts",
           fileHash: "d",
           testCount: 10,
@@ -195,14 +201,25 @@ describe("duration-aware shard planning", () => {
       const kindShards = plan.shards.filter((shard) =>
         shard.files.some((file) => file.startsWith("tests/kubernetes/")),
       );
-      expect(kindShards).toHaveLength(1);
-      expect(kindShards[0]!.units).toHaveLength(3);
+      expect(kindShards).toHaveLength(2);
+      const shared = kindShards.find((shard) =>
+        shard.files.includes("tests/kubernetes/future-case.spec.ts"),
+      )!;
+      const workers = kindShards.find((shard) =>
+        shard.files.includes("tests/kubernetes/kubernetes-worker-presets.spec.ts"),
+      )!;
+      expect(shared.units).toHaveLength(3);
+      expect(workers.index).not.toBe(shared.index);
+      expect(workers.units).toHaveLength(1);
       expect(
         plan.shards.flatMap((shard) => shard.units).reduce((sum, unit) => sum + unit.testCount, 0),
-      ).toBe(37);
-      expect(kindShards[0]!.predictedSeconds).toBe(
-        kindShards[0]!.units.reduce((sum, unit) => sum + unit.estimatedSeconds, 0),
+      ).toBe(38);
+      expect(shared.predictedSeconds).toBe(
+        shared.units.reduce((sum, unit) => sum + unit.estimatedSeconds, 0),
       );
+      const single = createShardPlan(catalog, { ...options, shardCount: 1 });
+      expect(() => validateShardManifest(single, catalog)).not.toThrow();
+      expect(single.shards[0]!.units).toHaveLength(catalog.length);
     },
   );
 

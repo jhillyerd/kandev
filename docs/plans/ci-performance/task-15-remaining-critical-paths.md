@@ -254,3 +254,48 @@ Before adoption, prove deterministic placement and exact coverage for profiled
 and fallback inputs, including future Kubernetes files and project boundaries.
 Run the real combined Kubernetes files to verify worker-fixture reuse and
 per-test cleanup; use hosted elapsed measurements to judge the candidate.
+
+
+### Sidebar native compilation cache (sixth candidate)
+
+The fifth hosted attempt exceeds the fifteen-minute budget while resource-memory
+jobs remain active and normal E2E jobs queue behind occupied hosted capacity.
+The fourth completed memory-1 job took 648 seconds; its actual Go test package
+used 414 seconds, with first test execution only after 223 seconds of container,
+checkout, dependency and compilation setup. All four sidebar modes compile the
+same native package without a Go cache.
+
+Add an optional shared module/compilation restore for the sidebar resource lane,
+with a role/dependency key and a compatible static-check fallback. Save only from
+the successful memory-1 mode so the four jobs do not race to compress/upload the
+same cache. Preserve native Go cache validation, all selectors and child-process
+isolation, the fixed memory bounds, required job outcomes and artifacts. Cache
+misses or service failures must still run the ordinary verification. Do not add
+a cache-based condition to either measurement step.
+
+Validate the existing workflow contracts, native sidebar selection fixture,
+action pins and required gates. Measure full cold/warm hosted elapsed time;
+compilation reuse is a candidate improvement, not an accepted latency result.
+The separate PostgreSQL timing rebalance remains an unimplemented proposal until
+the fifth attempt's completed artifacts justify its weights.
+
+
+### Worker-image transfer and placement (sixth candidate)
+
+The fifth grouped Kubernetes job passed but took 842 seconds, leaving the E2E
+execution critical path at 1,261 seconds before queue delays. All three prepared
+worker recipes share the same pinned Kandev base. Exporting/loading each final
+image separately repeats that base transfer. Build every original recipe and
+harness, then pass the three final tags to one pinned Kind load command. Keep
+all images, original transfer timeout, lifecycle smoke assertions and owned-image
+cleanup; transfer failure must propagate after cleaning every built image.
+
+Reserve one of the existing container jobs for the image-heavy worker-presets
+file. Its expensive worker setup is absent from per-test timing; independent LPT
+alone assigns eight additional files beside it in the measured manifest. Balance
+all remaining files across the other five jobs, retaining the shared control-plane
+Kubernetes group. Keep six container jobs and one worker per job;
+all native test identities, future-file discovery and optional gates remain.
+Verify both manifest modes and exact catalog union, then run the real worker
+lifecycle suite and measure complete hosted elapsed. Batch-loader support is
+confirmed in the pinned Kind v0.32.0 command implementation.

@@ -814,6 +814,18 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
+      - name: Restore sidebar Go compilation
+        id: sidebar_go_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        continue-on-error: true
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-sidebar-resources-${{ runner.os }}-${{ hashFiles('apps/backend/go.mod', 'apps/backend/go.sum') }}
+          restore-keys: |
+            go-sidebar-resources-${{ runner.os }}-
+            go-static-${{ runner.os }}-${{ hashFiles('apps/backend/go.mod', 'apps/backend/go.sum') }}
       - name: Measure isolated native memory and pooled retention
         if: startsWith(matrix.mode, 'memory-')
         env:
@@ -848,6 +860,17 @@ jobs:
           name: sidebar-resource-evidence-${{ matrix.mode }}
           path: apps/backend/sidebar-*.log
           retention-days: 30
+      # Every mode compiles the same package. One writer avoids duplicate
+      # compression/uploads; cached compilation never replaces native execution.
+      - name: Save sidebar Go compilation
+        if: success() && matrix.mode == 'memory-1' && steps.sidebar_go_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        continue-on-error: true
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-sidebar-resources-${{ runner.os }}-${{ hashFiles('apps/backend/go.mod', 'apps/backend/go.sum') }}
 
   postgres-18:
     name: Backend Postgres 18

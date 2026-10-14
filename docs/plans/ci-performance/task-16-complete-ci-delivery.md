@@ -289,3 +289,99 @@ After make build-web-e2e, all six desktop/mobile display-settings cases pass in
 two configuration failures remain recorded above. All final source checks pass.
 The next action is the normal hooked commit and one hosted candidate push; full
 workflow acceptance, current review and merge remain pending.
+
+
+### Fifth hosted result and sixth-candidate remediation
+
+The fifth full set is complete and fails acceptance. Backend run 38604393643
+failed at 1,179 seconds to the last job (1,181 to workflow update), with 966
+seconds execution critical path and 230.57 runner-minutes. Frontend run
+38604393508 passed at 1,291 seconds to the last job (1,390 to workflow update),
+with 705 seconds execution critical path and 26.12 runner-minutes. E2E run
+38604393338 failed at 1,885 seconds to the last job (1,886 to workflow update),
+with 1,261 seconds execution critical path and 311.82 runner-minutes. Keep both
+end timestamps visible; a workflow update is not always immediate job completion.
+The complete set is about 31m26s including queue. No fifteen-minute success.
+
+Backend bucket 2 exposes two test-fixture defects. The stable-window recovery
+test shares the latest binding and callback between goroutines; CI's race report
+pins those exact writes/reads. Pass each completed binding, callback and attempt
+number through its existing start channel instead. The standalone deadline test
+can consume its 10 ms deadline during HTTP enumeration before any loser stop is
+dispatched. Complete enumeration before the timed collection phase, retain real
+control-server stops, and withhold their result delivery until after that phase
+returns. Preserve the 10 ms deadline, 100 ms prompt-return assertion, zero
+recovered sessions, joint-failure retention and two-second background bound.
+Move the latter test into a focused file rather than growing the large fixture.
+No production recovery code or behavior changes.
+
+Both repaired tests pass 30 race-enabled repetitions. Surrounding runtime
+replacement/recovery and standalone recovery cases pass; scoped changed-package
+Go lint reports zero issues. The unmodified original tests also passed 30 local
+repetitions, so CI's concrete race trace and missing precondition are retained
+as failure evidence rather than claiming deterministic local reproduction.
+
+The optional sidebar compilation cache passes 25 backend workflow contracts,
+five required-gate contracts and nine pinning tests; all 27 workflows retain
+pinned actions. A structural comparison confirms that removing only the two
+new optional cache steps yields the identical original workflow: matrices,
+conditions, commands, artifacts and gates are unchanged. Documentation checks
+validate 382 decisions and 1,610 specifications.
+
+Fifth memory-1 runtime is 430.346 seconds, but its complete job took 943 seconds:
+first Go test execution was at 17:18:35 after a 17:10:57 job start. Cold setup and
+compilation therefore dominate its excess over the budget; the new cache still
+requires hosted validation. The grouped Kubernetes job passed but took 842
+seconds, and its setup plus the shared build/report path remains over budget.
+Treat fixture affinity as an experiment needing further improvement.
+
+E2E failures: normal shard 6 exhausts keyboard navigation in the long Threads
+question case; three local repetitions pass and trace diagnosis is pending.
+Normal shard 8 fails the worktree and local_pc survival tests because their
+fixed /slow 12 response completes before restart assertions on a loaded runner.
+Preserve running-turn assertions and replace the fixture's wall-clock race with
+a causal release mechanism. The sixth-candidate repairs and local verification follow below. Hosted timing
+for those repairs remains pending.
+
+
+### Sixth-candidate local verification
+
+Add the mock-only inline await_file directive, which holds a turn until its
+unique worker-owned release marker exists and honors prompt cancellation.
+Blocking/cancellation cases fail before implementation and pass afterward;
+the full mock-agent package passes with race detection. The survival tests now
+release the turn after every original in-flight restart assertion, and release
+again in finally for cleanup. Scope output locators to agent message bodies so
+the echoed script prompt cannot satisfy them. All identity, state, single-start,
+normal completion and follow-up message assertions remain.
+
+The keyboard diagnostic proves that returning from Back to SQLite previously
+takes 94 forward Tabs after Back disables itself and focus falls to the body.
+Native Shift+Tab reaches that same action in two presses. Use that return path
+for the first option while retaining forward navigation, Space/Enter activation,
+the ten-second bound and every geometry/hit-target assertion. The case passes in
+10.5 seconds locally after the change versus about 17 seconds before it. Remove
+all temporary diagnostic logging before final validation.
+
+Build all three original worker recipes and their final harnesses before one
+Kind image-load command. The pinned v0.32.0 loader exports one shared archive.
+The command contract fails before the change, then confirms all six builds,
+exactly three final tags in one transfer, and complete cleanup/failure propagation.
+A real single-worker Kind lifecycle case passes in 4.7 minutes, exercising minimal,
+Node/pnpm and Python images; its owned cluster is absent after cleanup. This
+local subset proves compatibility, not full hosted timing acceptance.
+
+The planner reserves one existing container job for the image-heavy fixture;
+otherwise its setup-free timing would put eight additional units beside it.
+The other five jobs retain exact discovery and control-plane fixture affinity.
+Profile/fallback allocation tests fail before the reservation and pass afterward,
+including one-shard fallback with the complete catalog. All 49 planner, runner,
+subshard, worker-image and fixture-policy cases pass. Strict changed-file ESLint,
+full web typecheck with a bounded heap and scoped Go lint pass. All nine final
+browser repetitions pass in 1.6 minutes with diagnostics removed. Both profiled
+and fallback native manifests preserve all 1,336 normal units / 3,808 tests and
+46 container units / 153 tests; only the intentionally edited survival spec hash
+changes. The worker-image fixture owns existing shard six in both plans, and
+container catalog hashes/checksum are identical to the fifth candidate.
+Documentation validation passes 382 decisions and 1,610 specifications. The next
+hosted full set, current review and merge remain the delivery gates.
