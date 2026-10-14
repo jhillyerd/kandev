@@ -1,7 +1,7 @@
 ---
 id: "02-wire-quick-chat-deletion"
 title: "Wire cleanup into Quick Chat deletion and expiry"
-status: done
+status: in_progress
 wave: 2
 depends_on:
   - "01-agent-history-removers"
@@ -14,6 +14,7 @@ acceptance_criteria:
   - AC-TASKS-QUICK-CHAT-AGENT-HISTORY-001.2
   - AC-TASKS-QUICK-CHAT-AGENT-HISTORY-001.4
   - AC-TASKS-QUICK-CHAT-AGENT-HISTORY-001.5
+  - AC-TASKS-QUICK-CHAT-AGENT-HISTORY-001.6
   - AC-TASKS-QUICK-CHAT-AGENT-HISTORY-002.1
   - AC-TASKS-QUICK-CHAT-AGENT-HISTORY-002.4
 system_design:
@@ -36,6 +37,9 @@ are logged and never change the deletion result.
   worktree path from `executors_running`, scratch path from `quickChatDir`, config-dir env from
   the resolved agent profile environment. Confirm the launched cwd for multi-repository chats.
 - Injectable remover and home dir on `Service` for tests (follow `SetQuickChatDir`).
+- Retain native identities in session metadata under the existing executor/token transaction
+  guards, then capture all eligible retained identities before task deletion.
+- Preserve live history after failed stops, independently from resume-safe dead-row preservation.
 
 ## Out of scope
 
@@ -79,8 +83,8 @@ WO-01.
 
 ## Risks
 
-`performTaskCleanup` is shared by every task type; the eligibility check must run first so
-normal tasks never reach the remover.
+Both runtime cleanup entry points are shared by every task type. The shared Quick Chat
+eligibility check must run before capture so normal tasks never reach the remover.
 
 ## Inputs
 
@@ -90,11 +94,21 @@ normal tasks never reach the remover.
 
 ## Results
 
+- PR remediation is in progress. Hosted regression tests cover explicit token clear/rotation,
+  confirmed-dead cleanup, failed-stop retention, and archive retention. The history CAS tests
+  additionally cover stale executions, unrelated metadata, executor-row deletion, normal/remote
+  exclusions, and concurrent PostgreSQL writers. Broad execution remains hosted.
+- Actual hosted full-backend events reproduced the confirmed-dead and both clear/rotation
+  transcript failures. Archive and failed-stop controls passed. A separate exact-source
+  hosted proof reproduced missing retained identities after accepted CAS, clear, and executor
+  deletion. Transactional retention and failed-stop-only history preservation address those
+  failures; hosted GREEN and full final-head verification remain pending.
+
 - Identities are captured in `deleteTaskWithManagedClaim` (non-managed deletes only) and carried
   through `taskEnvironmentCleanup.agentHistory` and the cleanup job snapshot `agent_history`.
 - Host-local check uses `executors_running.runtime == standalone`; config dirs come from the
   backend process environment.
-- `go test -trimpath ./internal/task/service/... -count=1`: pass (new service tests fail when the
+- Contributor-recorded verification before PR remediation: `go test -trimpath ./internal/task/service/... -count=1`: pass (new service tests fail when the
   removal call is disabled). `go vet`, `gofmt -l`: clean. `golangci-lint` v2.9.0
   `--new-from-rev` on both packages: 0 issues. Run in a `golang:1.26` container; Go is not
   installed on the host.

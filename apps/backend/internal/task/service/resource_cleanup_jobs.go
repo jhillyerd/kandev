@@ -1327,6 +1327,7 @@ func (s *Service) executeTaskResourceCleanupJob(
 			agentHistory:           snapshot.AgentHistory,
 		},
 		taskCleanupPreserveRows(stopOutcome))...)
+	s.removeQuickChatAgentHistory(ctx, job.TaskID, snapshot.AgentHistory, stopOutcome.failed)
 	if job.IsArchive() && len(failedStops) == 0 && len(errs) == 0 {
 		if cancelled, err := s.cancelIfTaskUnarchived(ctx, job); err != nil || cancelled {
 			// Worktrees may already be removed even when root cleanup is cancelled.

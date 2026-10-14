@@ -50,7 +50,7 @@ Confirmed persistence behavior (host-local executors, 2026-10-14):
 
 ### REQ-TASKS-QUICK-CHAT-AGENT-HISTORY-001: Remove agent history with its Quick Chat
 
-**Intent:** A deleted Quick Chat leaves no conversation behind in the agent's own history.
+**Intent:** A deleted Quick Chat removes its agent transcripts while preserving CLI-managed shared stores.
 
 **User story:** As a Kandev user, I want deleting or expiring a Quick Chat to also remove the
 agent's transcript of it, so that disposable chats do not accumulate in my agent history.
@@ -72,6 +72,10 @@ agent's transcript of it, so that disposable chats do not accumulate in my agent
   Chat deletion exactly as before and shall not report an error.
 - **AC-TASKS-QUICK-CHAT-AGENT-HISTORY-001.5:** When a history file cannot be removed, the system
   shall log a warning and shall otherwise complete the Quick Chat deletion unchanged.
+- **AC-TASKS-QUICK-CHAT-AGENT-HISTORY-001.6:** When a Quick Chat resets context, starts fresh,
+  or rotates to another provider conversation, deletion shall remove every retained history
+  identity created by that chat, including identities whose resume token was later cleared
+  or whose operational executor row was removed.
 
 ### REQ-TASKS-QUICK-CHAT-AGENT-HISTORY-002: Never remove unrelated history
 
@@ -88,8 +92,10 @@ agent's transcript of it, so that disposable chats do not accumulate in my agent
 - **AC-TASKS-QUICK-CHAT-AGENT-HISTORY-002.3:** When a derived path is not a regular file or
   directory inside the resolved agent history root, or a Codex rollout's recorded id or cwd does
   not match, the system shall not remove it.
-- **AC-TASKS-QUICK-CHAT-AGENT-HISTORY-002.4:** When a Quick Chat ran on a non-local executor
-  (Docker, SSH, Sprites, Kubernetes, plugin), the system shall not touch host agent history.
+- **AC-TASKS-QUICK-CHAT-AGENT-HISTORY-002.4:** When an execution used a non-local executor
+  (Docker, SSH, Sprites, Kubernetes, plugin), the system shall not use that execution's
+  identity to remove host agent history. Earlier recorded host-local executions retain
+  their own cleanup scope.
 
 ## Out of scope
 

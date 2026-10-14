@@ -44,7 +44,17 @@ deleted session, and never edits agent-owned shared indexes.
 
 ## Data and contracts
 
-The identity is read from existing rows; no schema change.
+Current identity is read from the executor row. Accepted local provider identities are also
+retained under `task_sessions.metadata.quick_chat_agent_history` before a later rotation can
+discard them. Each record carries the provider name, native resume token, working directory,
+and runtime. No schema change is required.
+
+Retention shares the existing executor upsert or resume-token transaction. The token CAS and
+its history write commit together, so a rejected stale execution cannot append an identity.
+The existing session-turn write lock serializes writers on PostgreSQL; SQLite serializes its
+writers. The metadata update changes only the history key, preserving unrelated session data.
+Repeated identities are deduplicated. Only eligible Quick Chats and standalone runtimes
+produce host-history records.
 
 | Field | Source |
 | --- | --- |
@@ -54,7 +64,9 @@ The identity is read from existing rows; no schema change.
 | host-local | `executors_running.runtime == standalone` (local and worktree executors) |
 | `Env`, `HomeDir` | the backend process environment (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`) and home directory, which host-local agent processes inherit |
 
-The captured identities are persisted in the durable task-resource cleanup job snapshot as
+Deletion captures retained records even when the operational executor row is absent or its
+current token is empty, and includes any remaining current local identity. Non-local records
+are excluded independently. The captured identities are persisted in the durable task-resource cleanup job snapshot as
 `agent_history` (additive, absent-tolerant), so a cleanup retried after a restart still has them.
 
 ## Eligibility
@@ -63,12 +75,17 @@ History cleanup runs for a session only when all hold:
 
 1. The task is a Quick Chat task (`is_ephemeral`, empty `workflow_id`, origin is not
    `automation_run`). Managed plugin conversations keep their own lifecycle and are excluded.
-2. The session's runtime was not preserved after a failed stop (`preserveExecutorRows`).
+2. The session's runtime stop did not fail. A confirmed-dead, resume-safe executor row may
+   remain preserved for row/worktree lifecycle reasons without preserving deleted-chat history.
 3. The executor runtime is host-local (`standalone`).
 4. `AgentName` is a supported agent and `ResumeToken` is a single safe path segment (no
    separators, not `.`/`..`, non-empty).
 
 ## Path derivation
+
+Config-dir overrides are literal paths. A nonempty override that is not absolute is skipped
+because the backend cannot recover the child process's path resolution safely; it never falls
+back to a different default store. Whitespace in an absolute override remains part of the path.
 
 **Claude Code.** `root = $CLAUDE_CONFIG_DIR or $HOME/.claude`. `encoded = WorkDir` with every
 rune outside `[A-Za-z0-9]` replaced by `-` (matches observed directory names such as
@@ -105,7 +122,8 @@ cleanup job / async cleanup
        agenthistory.Remove(identity) for each captured target
 ```
 
-Agents are stopped before cleanup, so the CLI cannot rewrite the transcript after removal.
+History removal uses the failed-stop set, separately from the union used to preserve executor
+rows and worktrees. Agents are stopped before cleanup, so the CLI cannot rewrite the transcript after removal.
 Archive triggers never capture identities.
 
 ## Failure and recovery
@@ -122,7 +140,10 @@ Archive triggers never capture identities.
 
 ## Persistence
 
-No database schema change. The cleanup job snapshot gains the additive `agent_history` field.
+No database schema change. Session metadata retains additive, absent-tolerant history records,
+and the cleanup job snapshot carries the additive `agent_history` field. The records die with
+the session row; archive keeps them available for later deletion. Tokens lost before this
+retention mechanism existed cannot be reconstructed by scanning unrelated history.
 Removal is best-effort and idempotent; a failed removal is logged and leaves the file.
 
 ## Security

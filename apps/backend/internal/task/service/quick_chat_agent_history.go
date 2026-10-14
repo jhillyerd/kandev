@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -33,7 +34,7 @@ type agentHistoryTarget struct {
 func (s *Service) captureQuickChatAgentHistory(
 	ctx context.Context, task *models.Task, sessions []*models.TaskSession,
 ) []agentHistoryTarget {
-	if !IsRestorableQuickChatTask(task) || s.executors == nil {
+	if !IsRestorableQuickChatTask(task) {
 		return nil
 	}
 	home, _ := os.UserHomeDir()
@@ -45,43 +46,101 @@ func (s *Service) captureQuickChatAgentHistory(
 	}
 	var targets []agentHistoryTarget
 	for _, session := range sessions {
-		if session == nil || session.ID == "" {
+		if session == nil || session.ID == "" || session.TaskID != task.ID {
 			continue
 		}
-		running, err := s.executors.GetExecutorRunningBySessionID(ctx, session.ID)
+		records, err := retainedQuickChatAgentHistory(session)
 		if err != nil {
-			if !errors.Is(err, models.ErrExecutorRunningNotFound) {
-				s.logger.Warn("quick-chat agent history: failed to read executor runtime",
-					zap.String("task_id", task.ID), zap.String("session_id", session.ID), zap.Error(err))
-			}
+			s.logger.Warn("quick-chat agent history: failed to read retained identities",
+				zap.String("session_id", session.ID), zap.Error(err))
+		}
+		if current := s.currentQuickChatAgentHistory(ctx, task.ID, session); current != nil {
+			records = append(records, *current)
+		}
+		targets = append(targets, quickChatHistoryTargets(session.ID, records, s.quickChatDir, home, env)...)
+	}
+	return targets
+}
+
+func quickChatHistoryTargets(
+	sessionID string, records []models.QuickChatAgentHistory, quickChatDir, home string, env map[string]string,
+) []agentHistoryTarget {
+	var targets []agentHistoryTarget
+	seen := make(map[models.QuickChatAgentHistory]struct{})
+	for _, record := range records {
+		if record.Runtime != agentruntime.RuntimeStandalone || record.ResumeToken == "" {
 			continue
 		}
-		if running == nil || running.Runtime != agentruntime.RuntimeStandalone || running.ResumeToken == "" {
+		if _, duplicate := seen[record]; duplicate {
 			continue
 		}
-		workDir := running.WorktreePath
-		if workDir == "" && s.quickChatDir != "" {
-			workDir = filepath.Join(s.quickChatDir, session.ID)
+		seen[record] = struct{}{}
+		workDir := record.WorkDir
+		if workDir == "" && quickChatDir != "" {
+			workDir = filepath.Join(quickChatDir, sessionID)
 		}
 		targets = append(targets, agentHistoryTarget{
-			SessionID:   session.ID,
-			AgentName:   models.StringFromAny(session.AgentProfileSnapshot["agent_name"]),
-			ResumeToken: running.ResumeToken,
-			WorkDir:     workDir,
-			HomeDir:     home,
-			Env:         env,
+			SessionID: sessionID, AgentName: record.AgentName, ResumeToken: record.ResumeToken,
+			WorkDir: workDir, HomeDir: home, Env: env,
 		})
 	}
 	return targets
 }
 
+func retainedQuickChatAgentHistory(session *models.TaskSession) ([]models.QuickChatAgentHistory, error) {
+	value, exists := session.Metadata[models.SessionMetaKeyQuickChatAgentHistory]
+	if !exists {
+		return nil, nil
+	}
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	var records []models.QuickChatAgentHistory
+	if err := json.Unmarshal(raw, &records); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (s *Service) currentQuickChatAgentHistory(
+	ctx context.Context, taskID string, session *models.TaskSession,
+) *models.QuickChatAgentHistory {
+	if s.executors == nil {
+		return nil
+	}
+	running, err := s.executors.GetExecutorRunningBySessionID(ctx, session.ID)
+	if err != nil {
+		if !errors.Is(err, models.ErrExecutorRunningNotFound) {
+			s.logger.Warn("quick-chat agent history: failed to read executor runtime",
+				zap.String("task_id", taskID), zap.String("session_id", session.ID), zap.Error(err))
+		}
+		return nil
+	}
+	if running == nil || running.TaskID != taskID || running.SessionID != session.ID ||
+		running.Runtime != agentruntime.RuntimeStandalone || running.ResumeToken == "" {
+		return nil
+	}
+	profileID := session.ExecutionProfileID
+	if profileID == "" {
+		profileID = session.AgentProfileID
+	}
+	if profileID != "" && running.ExecutionProfileID != "" && running.ExecutionProfileID != profileID {
+		return nil
+	}
+	return &models.QuickChatAgentHistory{
+		AgentName:   models.StringFromAny(session.AgentProfileSnapshot["agent_name"]),
+		ResumeToken: running.ResumeToken, WorkDir: running.WorktreePath, Runtime: running.Runtime,
+	}
+}
+
 // removeQuickChatAgentHistory removes captured agent history. Failures are
 // logged and never change the deletion outcome.
 func (s *Service) removeQuickChatAgentHistory(
-	ctx context.Context, taskID string, targets []agentHistoryTarget, preserveExecutorRows map[string]struct{},
+	ctx context.Context, taskID string, targets []agentHistoryTarget, failedStops map[string]struct{},
 ) {
 	for _, target := range targets {
-		if _, preserve := preserveExecutorRows[target.SessionID]; preserve {
+		if _, preserve := failedStops[target.SessionID]; preserve {
 			continue
 		}
 		err := agenthistory.Remove(ctx, agenthistory.Identity{

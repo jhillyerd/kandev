@@ -1,6 +1,6 @@
 ---
 created: 2026-10-14
-status: implemented
+status: in_progress
 requirements:
   - REQ-TASKS-QUICK-CHAT-AGENT-HISTORY-001
   - REQ-TASKS-QUICK-CHAT-AGENT-HISTORY-002
@@ -25,7 +25,7 @@ deletion and expiry.
 | Order | Work order | Wave | Depends on | Status |
 | --- | --- | --- | --- | --- |
 | 01 | [Agent history removers](task-01-agent-history-removers.md) | 1 | none | `done` |
-| 02 | [Wire cleanup into Quick Chat deletion and expiry](task-02-wire-quick-chat-deletion.md) | 2 | 01 | `done` |
+| 02 | [Wire cleanup into Quick Chat deletion and expiry](task-02-wire-quick-chat-deletion.md) | 2 | 01 | `in_progress` |
 
 ## Risks
 

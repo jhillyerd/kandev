@@ -3425,6 +3425,7 @@ func (s *Service) runTaskCleanup(
 
 	cleanupErrors := s.performTaskCleanup(cleanupCtx, id, sessions, worktrees, stopTargets, envCleanup,
 		taskCleanupPreserveRows(stopOutcome))
+	s.removeQuickChatAgentHistory(cleanupCtx, id, envCleanup.agentHistory, stopOutcome.failed)
 
 	if len(cleanupErrors) > 0 {
 		s.logger.Warn(cleanupMsg+" with errors",
@@ -3918,7 +3919,6 @@ func (s *Service) performTaskCleanup(
 		return append(errs, cause)
 	}
 	errs = append(errs, s.cleanupQuickChatDirs(ctx, taskID, sessionIDs, preserveExecutorRows)...)
-	s.removeQuickChatAgentHistory(ctx, taskID, envCleanup.agentHistory, preserveExecutorRows)
 
 	return errs
 }
