@@ -277,3 +277,37 @@ func TestQuickChatExpirationRemovesAgentHistory(t *testing.T) {
 	assertPathExists(t, transcript, false)
 	assertPathExists(t, filepath.Dir(transcript), false)
 }
+
+// The Quick Chat tab close deletes through the task-tree cascade.
+func TestDeleteQuickChatTreeRemovesItsAgentHistory(t *testing.T) {
+	svc, _, repo := createTestService(t)
+	f := newAgentHistoryFixture(t, svc)
+	claudeSession := seedAgentHistoryTask(t, repo, agentHistoryTaskSpec{
+		taskID: "quick-tree-claude", ephemeral: true, agentName: "claude-acp", resumeToken: "abababab-0000-4000-8000-000000000001",
+	})
+	claudeTranscript := f.writeClaudeTranscript(t, filepath.Join(f.quickChatDir, claudeSession), "abababab-0000-4000-8000-000000000001")
+	codexSession := seedAgentHistoryTask(t, repo, agentHistoryTaskSpec{
+		taskID: "quick-tree-codex", ephemeral: true, agentName: "codex-acp", resumeToken: "01a109d5-1957-7462-9235-e91c49e4553a",
+	})
+	codexRollout := f.writeCodexRollout(t, filepath.Join(f.quickChatDir, codexSession), "01a109d5-1957-7462-9235-e91c49e4553a")
+	normalWorktree := "/home/u/.kandev/tasks/normal-tree_abc/repo"
+	seedAgentHistoryTask(t, repo, agentHistoryTaskSpec{
+		taskID: "normal-tree", workflowID: "wf-tree", agentName: "claude-acp",
+		resumeToken: "abababab-0000-4000-8000-000000000002", worktree: normalWorktree,
+	})
+	normalTranscript := f.writeClaudeTranscript(t, normalWorktree, "abababab-0000-4000-8000-000000000002")
+
+	handoff := NewHandoffService(repo, repo, nil, nil, nil, nil)
+	handoff.SetTaskEventPublisher(svc)
+	handoff.SetTaskResourceCleaner(svc)
+	for _, taskID := range []string{"quick-tree-claude", "quick-tree-codex", "normal-tree"} {
+		if _, err := handoff.DeleteTaskTree(context.Background(), taskID, true); err != nil {
+			t.Fatalf("DeleteTaskTree(%s): %v", taskID, err)
+		}
+		waitForCleanupDone(t, svc)
+	}
+
+	assertPathExists(t, claudeTranscript, false)
+	assertPathExists(t, codexRollout, false)
+	assertPathExists(t, normalTranscript, true)
+}

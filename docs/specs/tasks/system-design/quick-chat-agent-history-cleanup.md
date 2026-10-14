@@ -88,16 +88,24 @@ before removing it. Codex-owned `state_5.sqlite` and `session_index.jsonl` are n
 
 ## Control flow
 
+Identities are captured wherever a deleting cleanup job snapshots its inventory, so every
+delete route is covered:
+
 ```text
-DeleteTask / deleteExpiredQuickChatTask
-  -> deleteTaskWithReason... -> stop agents -> performTaskCleanup
-       capture history identities (before DeleteExecutorRunningBySessionID)
-       delete executor rows
-       cleanupQuickChatDirs
-       agenthistory.Remove(identity) for each eligible session
+Quick Chat tab close -> HandoffService.DeleteTaskTree
+  -> PrepareTaskResourceCleanupWithOptions (cascade_delete)
+       snapshot.agent_history = capture(task, sessions)   (deleting triggers only)
+DeleteTask / deleteExpiredQuickChatTask (quick_chat_expire)
+  -> deleteTaskWithManagedClaim
+       envCleanup.agentHistory = capture(task, sessions)  -> snapshot.agent_history
+cleanup job / async cleanup
+  -> stop agents -> performTaskCleanup
+       delete executor rows, cleanupQuickChatDirs
+       agenthistory.Remove(identity) for each captured target
 ```
 
 Agents are stopped before cleanup, so the CLI cannot rewrite the transcript after removal.
+Archive triggers never capture identities.
 
 ## Failure and recovery
 

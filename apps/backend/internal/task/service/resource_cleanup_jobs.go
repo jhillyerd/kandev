@@ -1735,6 +1735,9 @@ func (s *Service) PrepareTaskResourceCleanupWithOptions(
 		SSHTaskDirs:            sshTaskDirs,
 		WorkspaceID:            task.WorkspaceID,
 	}
+	if taskResourceCleanupDeletesTask(trigger) {
+		snapshot.AgentHistory = s.captureQuickChatAgentHistory(ctx, task, sessions)
+	}
 	encoded, err := json.Marshal(snapshot)
 	if err != nil {
 		return cancelPrepared(fmt.Errorf("encode task resource cleanup snapshot: %w", err))

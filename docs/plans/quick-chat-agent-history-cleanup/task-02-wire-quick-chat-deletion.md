@@ -98,3 +98,8 @@ normal tasks never reach the remover.
   removal call is disabled). `go vet`, `gofmt -l`: clean. `golangci-lint` v2.9.0
   `--new-from-rev` on both packages: 0 issues. Run in a `golang:1.26` container; Go is not
   installed on the host.
+- Manual test on a dev instance found that closing a Quick Chat tab deletes through
+  `HandoffService.DeleteTaskTree` (`cascade_delete`), which prepares its snapshot in
+  `PrepareTaskResourceCleanupWithOptions` and skipped the capture. Fixed by capturing there for
+  every deleting trigger; regression test `TestDeleteQuickChatTreeRemovesItsAgentHistory`
+  covers Claude, Codex and a normal task through the cascade route.
