@@ -60,7 +60,8 @@ elements and their subtrees.
 - `releaseAnimation(animation)` in `apps/packages/ui/src/animation-utils.tsx`.
 - Use it in chat row and text motion, grid spinner, compositor spin and pulse,
   and settings-search motion.
-- Unit assertions that chat motion detaches the effect on cleanup.
+- Unit assertions that chat motion detaches the effect on cleanup, and that
+  settings-search motion detaches it when an animation finishes.
 
 ### Out of scope
 
@@ -76,7 +77,8 @@ elements and their subtrees.
 
 - The two new assertions failed with only `cancel()` and pass with `releaseAnimation`.
 - The chat motion, grid spinner, compositor, motion visibility, and chat-motion
-  hook suites pass (12 files, 123 tests). Web typecheck and scoped ESLint pass.
+  hook suites pass (12 files, 123 tests). The settings-search finish assertion
+  failed before releasing in the `finish` listener and passes after it. Web typecheck and scoped ESLint pass.
 - The WKWebView harness released all effects and spans with the same cleanup.
 
 ## Risks

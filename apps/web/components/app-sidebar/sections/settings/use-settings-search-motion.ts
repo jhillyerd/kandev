@@ -52,7 +52,9 @@ export function useSettingsSearchMotion(layoutKey: string) {
       animation.addEventListener(
         "finish",
         () => {
-          if (animations.get(entry.key) === animation) animations.delete(entry.key);
+          if (animations.get(entry.key) !== animation) return;
+          releaseAnimation(animation);
+          animations.delete(entry.key);
         },
         { once: true },
       );
