@@ -121,6 +121,32 @@ in parallel. Reuse existing Make targets without changing local/release builds.
 The report gate joins this job and rejects failure, cancellation or an unexpected
 skip. Every further change gets a source-specific work-order update before implementation.
 
+Container global setup owns one temporary canonical helper manifest per
+Playwright invocation. Worker bundles and caches remain isolated and validate
+the shared identity and Linux helper digest before using it. Teardown removes
+the shared artifact; standalone fixture calls still generate their own manifest.
+Kind receives only the final worker harness images, retaining all real recipe
+builds and their layers while avoiding unused intermediate image transfers.
+
+E2E Go caches save source-specific snapshots under their existing job-role and
+dependency prefixes. Later sources restore the latest compatible snapshot;
+native Go cache validation remains authoritative. Include snapshot compression,
+upload and restore in measurements and retain the existing trusted cache scope.
+Windows additionally snapshots only native GOCACHE by suite and source, retaining
+Setup-Go's module cache. Process cohorts share one compiled-package cache.
+
+The four ordinary Go buckets preserve native discovery and stable hashing, with
+three measured heavy packages assigned to the otherwise light third bucket:
+backendapp, ACP adapter transport and coordinator. This explicit balancing rule
+changes placement only; new packages still enter the hash allocation and every
+selected package retains the original race/coverage command.
+
+After measuring the two-process tail, the next candidate requests up to three
+normal processes through the unchanged memory/CPU guard (12 GiB available,
+four CPUs required for three). Each process still has one worker and disjoint
+whole files; container jobs remain single-process. Measure contention and retries
+before adoption, with no matrix growth or unsafe resource override.
+
 ## Evidence, acceptance and rollback
 
 Use one bounded hosted candidate at a time. Collect attempt-specific run/job/step

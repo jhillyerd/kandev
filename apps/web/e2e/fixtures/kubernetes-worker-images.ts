@@ -72,7 +72,6 @@ export async function buildKubernetesWorkerImages(
         { tag: harnessTag, target, kind: "harness" },
       );
       buildImage(target, recipeTag, pins.baseImage, pins.pnpmVersion);
-      loadImage(cluster, recipeTag);
       buildHarnessImage(recipeTag, harnessTag);
       loadImage(cluster, harnessTag);
     }

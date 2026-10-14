@@ -45,30 +45,36 @@ describe("bounded partitions within a planned shard", () => {
     expect(() => processCount(requested, "3", 4, "normal")).toThrow(/count/);
   });
 
-  it("balances whole files without duplicating a file shared by projects", () => {
-    const source = shard([
-      unit("shared.spec.ts", 10),
-      unit("shared.spec.ts", 9, "mobile-chrome"),
-      unit("second.spec.ts", 18),
-      unit("third.spec.ts", 4),
-      unit("fourth.spec.ts", 3),
-    ]);
-    const before = structuredClone(source);
-    const parts = partitionShard(source, 2);
-    expect(parts).toHaveLength(2);
-    expect(parts.map((part) => part.predictedSeconds)).toEqual([22, 22]);
-    expect(parts.flatMap((part) => part.files).sort()).toEqual([...source.files].sort());
-    expect(
-      parts
-        .flatMap((part) => part.units)
-        .map((entry) => entry.id)
-        .sort(),
-    ).toEqual(source.units.map((entry) => entry.id).sort());
-    expect(parts.find((part) => part.files.includes("shared.spec.ts"))?.units).toEqual(
-      expect.arrayContaining(source.units.filter((entry) => entry.file === "shared.spec.ts")),
-    );
-    expect(source).toEqual(before);
-  });
+  it.each([
+    [2, [22, 22]],
+    [3, [19, 18, 7]],
+  ] as const)(
+    "balances %i partitions without duplicating files shared by projects",
+    (count, loads) => {
+      const source = shard([
+        unit("shared.spec.ts", 10),
+        unit("shared.spec.ts", 9, "mobile-chrome"),
+        unit("second.spec.ts", 18),
+        unit("third.spec.ts", 4),
+        unit("fourth.spec.ts", 3),
+      ]);
+      const before = structuredClone(source);
+      const parts = partitionShard(source, count);
+      expect(parts).toHaveLength(count);
+      expect(parts.map((part) => part.predictedSeconds)).toEqual(loads);
+      expect(parts.flatMap((part) => part.files).sort()).toEqual([...source.files].sort());
+      expect(
+        parts
+          .flatMap((part) => part.units)
+          .map((entry) => entry.id)
+          .sort(),
+      ).toEqual(source.units.map((entry) => entry.id).sort());
+      expect(parts.find((part) => part.files.includes("shared.spec.ts"))?.units).toEqual(
+        expect.arrayContaining(source.units.filter((entry) => entry.file === "shared.spec.ts")),
+      );
+      expect(source).toEqual(before);
+    },
+  );
 
   it("uses deterministic file ordering when estimated durations tie", () => {
     const units = [unit("c.spec.ts", 1), unit("b.spec.ts", 1), unit("a.spec.ts", 1)];

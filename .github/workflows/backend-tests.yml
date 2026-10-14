@@ -360,11 +360,17 @@ jobs:
           for package in "${all_packages[@]}"; do
             # The required repository matrix owns this package's complete inventory.
             if [[ "${package}" == github.com/kandev/kandev/internal/task/repository/sqlite ]]; then continue; fi
-            # Stable hashing keeps package assignments unchanged when another
-            # package is added or removed.
-            checksum="$(cksum <<<"${package}")"
-            checksum="${checksum%% *}"
-            if (( checksum % 4 == SHARD_INDEX )); then
+            # Keep measured heavy integration packages on the otherwise light
+            # third shard. All other packages retain stable hash allocation.
+            case "${package}" in
+              github.com/kandev/kandev/internal/backendapp|github.com/kandev/kandev/internal/agentctl/server/adapter/transport/acp|github.com/kandev/kandev/internal/coordinator)
+                package_shard=2 ;;
+              *)
+                checksum="$(cksum <<<"${package}")"
+                checksum="${checksum%% *}"
+                package_shard=$(( checksum % 4 )) ;;
+            esac
+            if (( package_shard == SHARD_INDEX )); then
               shard_packages+=("${package}")
             fi
           done
@@ -965,6 +971,24 @@ jobs:
         with:
           go-version-file: apps/backend/go.mod
           cache-dependency-path: apps/backend/go.sum
+
+      - name: Resolve Windows Go build cache
+        id: windows_go_cache
+        run: |
+          $cachePath = go env GOCACHE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $goVersion = go env GOVERSION
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "path=$cachePath" >> $env:GITHUB_OUTPUT
+          "version=$goVersion" >> $env:GITHUB_OUTPUT
+
+      - name: Cache Windows compiled packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.windows_go_cache.outputs.path }}
+          key: go-windows-build-${{ matrix.suite }}-${{ runner.arch }}-${{ steps.windows_go_cache.outputs.version }}-${{ hashFiles('apps/backend/go.mod', 'apps/backend/go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-windows-build-${{ matrix.suite }}-${{ runner.arch }}-${{ steps.windows_go_cache.outputs.version }}-${{ hashFiles('apps/backend/go.mod', 'apps/backend/go.sum') }}-
 
       - name: Compile Windows settings test packages
         if: matrix.suite == 'settings'

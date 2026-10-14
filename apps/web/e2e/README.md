@@ -789,8 +789,12 @@ for a result it could never receive.
 
 ## CI
 
-`.github/workflows/e2e-tests.yml` defines two test cohorts and a report job:
+`.github/workflows/e2e-tests.yml` builds the test runtime, runs the test cohorts,
+and joins their required results:
 
+- `build` — builds the Linux browser prerequisites and generates manifests.
+- `helper_compile` — compiles the remaining helper platforms and diagnostic
+  commands in parallel, and remains required by the report gate.
 - `e2e` — a 28-entry matrix executing the generated normal manifests.
 - `e2e-containers` — a 6-entry matrix executing the generated container
   manifests and requiring Docker. A shard assigned `tests/kubernetes/**`
@@ -802,11 +806,15 @@ for a result it could never receive.
 
 The build job uploads `e2e-shard-manifests` for the current run. Both cohorts
 upload blob reports that `e2e-report` merges into a single HTML artifact.
+Container global setup prepares one canonical helper manifest for the invocation;
+each worker still validates its identity and digest and owns a private bundle
+and helper cache. Global teardown removes the shared temporary manifest.
 
-Normal jobs request up to two independent Playwright processes through
+Normal jobs request up to three independent Playwright processes through
 `E2E_RUNNER_PROCESSES`. Each keeps one worker and a disjoint set of whole files.
 The wrapper applies the existing memory guard, and the runner leaves one CPU
-available when choosing the process count. Unknown resources select one
+available when choosing the process count. Three processes require at least
+12 GiB available memory and four CPUs. Unknown resources select one
 process; container jobs always use one. Set `E2E_RUNNER_PROCESSES=1` to compare
 or restore serial execution without changing the manifest or test selection.
 Separate port slots, result directories and blob files preserve isolation

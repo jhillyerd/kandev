@@ -34,6 +34,18 @@ class BackendTestsWorkflowContractTest(unittest.TestCase):
         self.workflow = WORKFLOW.read_text(encoding="utf-8")
         self.base_image_workflow = BASE_IMAGE_WORKFLOW.read_text(encoding="utf-8")
 
+    def test_windows_build_cache_refreshes_by_suite_without_cohort_duplication(self) -> None:
+        discover = step_block(self.workflow, "Resolve Windows Go build cache")
+        self.assertIn("go env GOCACHE", discover)
+        self.assertIn("go env GOVERSION", discover)
+        cache = step_block(self.workflow, "Cache Windows compiled packages")
+        self.assertIn("path: ${{ steps.windows_go_cache.outputs.path }}", cache)
+        self.assertIn("${{ matrix.suite }}", cache)
+        self.assertIn("${{ github.sha }}", cache)
+        self.assertIn("${{ steps.windows_go_cache.outputs.version }}", cache)
+        self.assertNotIn("matrix.cohort", cache)
+        self.assertIn("restore-keys:", cache)
+
     def test_postgres_16_uses_fixed_catalog_commands(self) -> None:
         self.assertNotIn("PostgresDSNFromEnv", self.workflow)
         self.assertNotIn("mapfile -t postgres_packages", self.workflow)
@@ -114,6 +126,9 @@ class BackendTestsWorkflowContractTest(unittest.TestCase):
         script = script.split("# Keep complete JSON", 1)[0]
         script += "\nprintf '%s\\n' \"${shard_packages[@]}\"\n"
         packages = ["github.com/kandev/kandev/internal/future/part" + str(n) for n in range(40)]
+        heavy = ["github.com/kandev/kandev/internal/" + name for name in
+                 ("backendapp", "agentctl/server/adapter/transport/acp", "coordinator")]
+        packages.extend(heavy)
         repository = "github.com/kandev/kandev/internal/task/repository/sqlite"
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -126,7 +141,9 @@ class BackendTestsWorkflowContractTest(unittest.TestCase):
                                         env={**os.environ, "PATH": str(root) + os.pathsep + os.environ["PATH"],
                                              "NATIVE_PACKAGES": "\n".join(packages + [repository]),
                                              "SHARD_INDEX": str(index), "SHARD_NUMBER": str(index + 1)})
-                selected.extend(line for line in result.stdout.splitlines() if line.startswith("github.com/"))
+                assigned = [line for line in result.stdout.splitlines() if line.startswith("github.com/")]
+                self.assertEqual(set(assigned) & set(heavy), set(heavy) if index == 2 else set())
+                selected.extend(assigned)
             self.assertCountEqual(selected, packages)
 
     def test_repository_cohorts_are_required_and_excluded_only_from_ordinary_jobs(self) -> None:

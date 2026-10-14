@@ -54,6 +54,15 @@ class E2EWorkflowContractTest(unittest.TestCase):
         self.assertEqual(family["instances"], [{"shard": n} for n in range(1, count + 1)])
         self.assertIn("name: E2E Shard ${{ matrix.shard }}/28", workflow)
 
+    def test_go_cache_snapshots_refresh_after_source_changes(self) -> None:
+        workflow = E2E_WORKFLOW.read_text()
+        dependency = "${{ runner.os }}-${{ hashFiles('apps/backend/go.mod', 'apps/backend/go.sum') }}"
+        for job, next_job, role in (("helper_compile", "build", "helpers"), ("build", "e2e", "build")):
+            block = job_block(workflow, job, next_job)
+            prefix = f"go-e2e-{role}-{dependency}"
+            self.assertIn(f"key: {prefix}-${{{{ github.sha }}}}", block)
+            self.assertIn(f"restore-keys: |\n            {prefix}-\n", block)
+
     def test_parallel_build_joins_both_children_and_preserves_each_failure(self) -> None:
         source = E2E_WORKFLOW.read_text().split("      - name: Build backend and web\n", 1)[1]
         script = textwrap.dedent(source.split("        run: |\n", 1)[1].split("\n      #", 1)[0])
@@ -294,7 +303,7 @@ cat "${FAKE_DOCKER_MANIFEST}"
     def test_only_normal_jobs_request_bounded_in_runner_processes(self) -> None:
         workflow = E2E_WORKFLOW.read_text(encoding="utf-8")
         normal_job = job_block(workflow, "e2e", "playwright_image")
-        self.assertIn('E2E_RUNNER_PROCESSES: "2"', normal_job)
+        self.assertIn('E2E_RUNNER_PROCESSES: "3"', normal_job)
         self.assertEqual(workflow.count("E2E_RUNNER_PROCESSES:"), 1)
         wrapper = REPO_ROOT / "apps/web/e2e/scripts/run-planned-shard.sh"
         self.assertIn('export E2E_RUNNER_MAX_SHARDS="$(e2e_max_local_shards)"', wrapper.read_text())

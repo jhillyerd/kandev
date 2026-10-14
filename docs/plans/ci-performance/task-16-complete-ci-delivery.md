@@ -84,3 +84,36 @@ that tested merge. Dispatch-only frontend comparisons on the two temporary
 branches preserve identical application trees and avoid PR-event differences.
 The first PR result is useful loaded evidence; baseline reports and repeated
 matched dispatch samples remain pending.
+
+Third candidate `5949b632b0` passed the complete backend workflow 38587972467
+in 1,134 seconds (18m54s), with 971 seconds of execution critical path and
+243.32 runner-minutes. All four Windows process reports validate the same native
+inventory: 864 names across two packages, split 216/216/216/216 exactly once.
+Frontend 38587972660 failed only the existing Kubernetes SemVer workflow-string
+contract, which still expected the old make target; update that assertion to the
+new versioned native build command. E2E 38587972415 remains pending and cannot
+count as complete acceptance. Its build improved from approximately eight to
+six minutes.
+
+Matched frontend dispatch pair two (38587875054 / 38587880385) passed with
+identical 26,411 test identities and outcomes. Full elapsed was 1,725 versus
+704 seconds; execution critical path was 1,540 versus 663 seconds; runner-minutes
+were 25.6667 versus 26.5333 (+3.38%). Pair three is running as
+38592146394 / 38592152123 on the same frozen application tree. The earlier PR
+sample's higher occupancy remains retained and is not hidden by these pairs.
+
+The fourth candidate's local verification covers canonical shared-manifest
+identity/digest checks, isolated caches and failed-preparation cleanup, actual
+worker-image command boundaries and cleanup, existing Kubernetes pins, native
+Go allocation, cache/workflow contracts and unchanged process resource guards.
+The real local Kubernetes worker-preset lifecycle passed for minimal, node-pnpm
+and Python images (one test, 5.2 minutes including fixture setup; test body 37.7
+seconds). With the real 44 MiB helper, preparation measured 21.894 seconds once
+and 0.643/0.626/0.664 seconds for three isolated bundles. These local measurements
+are diagnostic; the complete hosted acceptance gate remains unmet.
+
+The same 3,808-test normal manifest partitions into 84 disjoint one-worker
+processes across 28 jobs. Its longest whole-file estimate is 438.6825 seconds,
+so the idealized 343-second average is not the expected tail. Native ordinary Go
+selection remains exactly 407 packages in buckets 97/105/112/93, with the
+repository package delegated once to its required native-cohort matrix.

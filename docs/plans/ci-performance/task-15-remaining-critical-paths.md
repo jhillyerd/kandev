@@ -154,3 +154,87 @@ hash buckets for the remaining package inventory, still excluding only the
 repository package owned by its required matrix. Preserve all commands, race
 and coverage flags, per-package deadlines and artifact/report handling. Verify
 the four-way union from native go-list output, including newly added packages.
+
+### Container fixture preparation
+
+Second-candidate container shard 6 took 784.506 seconds in Playwright while
+its test bodies totaled 324.978 seconds. Worker fixtures included Kind startup
+(144.901 seconds), worker-image preparation (194.988 seconds), and three backend
+starts (88.508 seconds). These costs are absent from the test-body timing profile.
+The compact-runtime fixture invokes the canonical release tool to compress four
+identical helper inputs at gzip level nine on every backend/image preparation.
+A real local 44 MiB helper reproduced 21.412 seconds per preparation.
+
+Prepare one canonical compact-runtime manifest per container Playwright invocation
+in global setup, in a uniquely owned temporary directory. Every worker retains
+its own bundle, home and helper cache, verifies the canonical bundle, and checks
+the shared manifest's version, source revision and Linux helper digest against
+its current inputs. Remove the shared directory in global teardown, including
+failed preparation cleanup. Non-container runs do no extra work; direct fixture
+callers retain standalone generation. Do not reuse across invocations or change
+release-tool validation, compression or application runtime behavior.
+
+Also omit loading intermediate worker recipe images into Kind: tests reference
+only their final harness images, whose layers include the recipes. Continue
+building all three real recipes, adding the current mock agent, loading each
+final image and disposing all owned tags. Prove final-image coverage and cleanup
+through the Docker command boundary, then run the real hosted container suite.
+
+Before implementation, add failing tests for single manifest generation across
+isolated bundles, stale identity/digest rejection, teardown/failure cleanup, and
+final image loading without intermediate transfers. Run focused Vitest, changed
+file lint/format, and the full hosted E2E measurement before adoption.
+
+### Incremental E2E Go cache snapshots
+
+Third-candidate build 115935221355 improved to 362 seconds, with 203 seconds
+in backend/web/delivery compilation. Its Go cache was an exact hit on the
+dependency-only key, restoring an old immutable 790 MiB snapshot and preventing
+the updated compilation cache from being saved. The delivery fixture alone
+recompiled for 74 seconds. Add the tested source SHA to the two E2E Go cache
+keys (browser build and parallel helper compilation), restoring first from the
+same role/dependency prefix, then the existing role/general fallbacks. Go still
+validates every cached object against source, compiler and flags. Preserve cache
+paths, permissions and artifact identity checks; no binary-output shortcut.
+Measure restore/save overhead as part of complete elapsed time, including the
+first snapshot-producing run. Require the workflow contract to retain the
+source key and dependency-first incremental restore order.
+
+The same immutable-cache issue affects Windows: settings job 115935187357 spent
+15:19:07–15:24:08 in cold package compilation, then completed its tests successfully.
+Setup-Go reported an exact hit on its dependency-only key and did not save those
+new build objects. Retain Setup-Go's existing module cache, and add a narrowly
+scoped GOCACHE snapshot keyed by native Go version, suite, dependency digest and
+source SHA. All four process cohorts share one suite cache because they compile
+the same packages; do not multiply it by cohort. Resolve paths through `go env`,
+retain existing test flags/deadlines, and measure cache upload/restore overhead.
+Limit this experiment to the two E2E build roles and Windows build objects:
+repository cache usage is already approximately 10 GiB, so broad per-job cache
+duplication would risk eviction churn. No storage limit or billing changes.
+
+### Four-bucket balance correction
+
+Third-candidate backend run 38587972467 passed in 1,134 seconds, but ordinary
+shard 4 remained the critical job (949 seconds, test step 790). Its package
+elapsed sums were 1,595 seconds versus shard 3's 298; shards 1 and 2 summed
+887 and 984. Move only backendapp (244.459), ACP adapter transport (237.853)
+and coordinator (180.728) from bucket four to bucket three. This makes measured
+package sums approximately 932/961 seconds for those two buckets, without
+additional jobs. All other native packages retain stable hashing and the sole
+repository exclusion. Verify disjoint native selection and explicit placement
+of those three packages, including unknown future packages. Package sums overlap
+in execution and are balancing evidence, not promised wall-time savings.
+
+### Use the existing guarded third normal process
+
+Second-candidate normal execution had a 502-second median and 850-second tail;
+the next run again has a slow normal tail after the six-minute build. Keep 28
+hosted normal jobs and request three independent one-worker processes through
+the existing process-count guard. That guard already allows three only with
+at least 12 GiB available memory and at least four CPUs, falls back to two/one
+when constrained, and always keeps containers at one. Change no guard threshold,
+Playwright worker setting, retry limit or matrix count. With the same historical
+workload, the idealized process estimate falls from 515 to 343 seconds; contention
+and fixture repetition make this only an experiment. Verify three-way disjoint
+whole-file allocation and failure joins, and retain actual process count, retry
+rate, job occupancy and complete elapsed time. Reject a resource/flake regression.
