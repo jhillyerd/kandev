@@ -128,6 +128,8 @@ type taskEnvironmentCleanup struct {
 	deleteRow              bool
 	preserveBranches       bool
 	discardWorktreeChanges bool
+	// agentHistory is set only for Quick Chat deletion.
+	agentHistory []agentHistoryTarget
 }
 
 type taskEnvironmentSessionUsageChecker interface {
@@ -3100,6 +3102,9 @@ func (s *Service) deleteTaskWithManagedClaim(
 	envCleanup := taskEnvironmentCleanup{
 		env: taskEnv, deleteRow: false, discardWorktreeChanges: options.DiscardWorktreeChanges,
 	}
+	if claim == nil {
+		envCleanup.agentHistory = s.captureQuickChatAgentHistory(operationCtx, task, sessions)
+	}
 	cleanupJob, err := s.persistTaskResourceCleanupWithManagedClaim(
 		operationCtx, id, trigger, "", sessions, worktrees, stopTargets, attachments, envCleanup, true, true, task.WorkspaceID, claim,
 	)
@@ -3913,6 +3918,7 @@ func (s *Service) performTaskCleanup(
 		return append(errs, cause)
 	}
 	errs = append(errs, s.cleanupQuickChatDirs(ctx, taskID, sessionIDs, preserveExecutorRows)...)
+	s.removeQuickChatAgentHistory(ctx, taskID, envCleanup.agentHistory, preserveExecutorRows)
 
 	return errs
 }

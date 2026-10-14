@@ -130,6 +130,9 @@ type taskResourceCleanupSnapshot struct {
 	// paths this job has removed and confirmed absent. A root persists for
 	// the life of the job; it is never removed from this list once added.
 	OrphanReapRoots []string `json:"orphan_reap_roots,omitempty"`
+	// AgentHistory records a deleted Quick Chat's agent history identities.
+	// Absent-tolerant: older job rows decode with none and remove nothing.
+	AgentHistory []agentHistoryTarget `json:"agent_history,omitempty"`
 	// OrphanReapRecords carries one outcome per candidate process this job
 	// has reaped or deliberately skipped, keyed by PID. A re-detected PID's
 	// record is replaced by the current attempt's outcome; a PID not
@@ -227,6 +230,7 @@ func (s *Service) persistTaskResourceCleanupWithManagedClaim(
 		TaskEnvironment:        envCleanup.env,
 		DeleteEnvironmentRow:   envCleanup.deleteRow,
 		LegacyWorktreeCleanup:  s.hasLegacyWorktreeCleanup(),
+		AgentHistory:           envCleanup.agentHistory,
 	}
 	if collectSSH {
 		sshTaskDirs, err := s.gatherSSHReclaimTargets(ctx, taskID)
@@ -1303,6 +1307,7 @@ func (s *Service) executeTaskResourceCleanupJob(
 			env: snapshot.TaskEnvironment, deleteRow: snapshot.DeleteEnvironmentRow,
 			preserveBranches:       job.IsArchive(),
 			discardWorktreeChanges: snapshot.DiscardWorktreeChanges,
+			agentHistory:           snapshot.AgentHistory,
 		},
 		taskCleanupPreserveRows(stopOutcome))...)
 	// Record every path this attempt actually removed and confirmed absent
