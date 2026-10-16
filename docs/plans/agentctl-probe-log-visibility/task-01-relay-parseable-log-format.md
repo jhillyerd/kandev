@@ -9,6 +9,7 @@ requirements:
   - REQ-AGENTS-PROBE-FAILURE-DIAGNOSTICS-002
 acceptance_criteria:
   - AC-AGENTS-PROBE-FAILURE-DIAGNOSTICS-002.1
+  - AC-AGENTS-PROBE-FAILURE-DIAGNOSTICS-002.2
 system_design:
   - ../../specs/agents/system-design/probe-failure-diagnostics.md
 ---
@@ -18,13 +19,13 @@ system_design:
 ## Summary
 
 The launcher owns the agentctl child's log format because the child's stdout
-feeds the launcher's relay. Pin `AGENTCTL_LOG_FORMAT` to the console format the
+feeds the launcher's relay. Pin `AGENTCTL_LOG_FORMAT` to the JSON format the
 relay parses and drop any inherited value, so an operator's ambient environment
 cannot break lifecycle record ingestion.
 
 ## In scope
 
-- Add `AGENTCTL_LOG_FORMAT=console` to `Launcher.childEnvOverrides` in
+- Add `AGENTCTL_LOG_FORMAT=json` to `Launcher.childEnvOverrides` in
   `internal/agent/runtime/agentctl/launcher/launcher.go`.
 - Regression test proving the override pins the format and replaces an
   inherited value.
@@ -36,7 +37,7 @@ cannot break lifecycle record ingestion.
 
 ## Applicable criteria
 
-- AC-AGENTS-PROBE-FAILURE-DIAGNOSTICS-002.1
+- AC-AGENTS-PROBE-FAILURE-DIAGNOSTICS-002.1 and 002.2
 - System design: [Probe Failure Diagnostics](../../specs/agents/system-design/probe-failure-diagnostics.md)
 
 ## Acceptance conditions
@@ -45,12 +46,14 @@ cannot break lifecycle record ingestion.
    passes after.
 2. An inherited `AGENTCTL_LOG_FORMAT` value cannot survive into the child
    environment.
+3. The JSON relay's existing privacy projection still excludes arbitrary
+   structured fields; approved probe diagnostics survive in the safe message.
 
 ## Verification commands
 
 ```bash
 cd apps/backend
-go test ./internal/agent/runtime/agentctl/launcher/ -run TestChildEnvOverridesPinRelayParseableLogFormat -count=1
+go test -race -trimpath ./internal/agent/runtime/agentctl/launcher/ -run 'TestChildEnvOverridesPinRelayParseableLogFormat|TestPipeOutputPreservesSeverityWithNestedDuplicateComponentFields' -count=1
 ```
 
 ## Likely files
@@ -60,5 +63,7 @@ go test ./internal/agent/runtime/agentctl/launcher/ -run TestChildEnvOverridesPi
 
 ## Results
 
-Implemented in commit `33980ff74`; the regression test passes and the
-launcher package tests are green.
+The original console pin in `33980ff74` is superseded by a JSON pin to retain
+the relay's structured-field privacy boundary. The existing environment test
+now covers duplicate inherited console/text values. Hosted RED and final
+verification results are retained in PR evidence.

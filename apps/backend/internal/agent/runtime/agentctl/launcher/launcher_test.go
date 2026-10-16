@@ -41,9 +41,8 @@ func TestEnvironmentWithOverridesRemovesInheritedValues(t *testing.T) {
 	}
 }
 
-// The managed child's stdout is a pipe to the relay, so the log format is the
-// launcher's contract: it must stay a format the relay parses regardless of
-// what the host environment carries.
+// The managed child must use the JSON relay envelope so private structured
+// context cannot cross into backend logs through an inherited console format.
 func TestChildEnvOverridesPinRelayParseableLogFormat(t *testing.T) {
 	launcher := &Launcher{logger: newUnexpectedExitTestLogger(t)}
 
@@ -52,10 +51,10 @@ func TestChildEnvOverridesPinRelayParseableLogFormat(t *testing.T) {
 		t.Fatalf("childEnvOverrides: %v", err)
 	}
 
-	env := environmentWithOverrides([]string{"AGENTCTL_LOG_FORMAT=json", "PATH=/bin"}, overrides...)
+	env := environmentWithOverrides([]string{"AGENTCTL_LOG_FORMAT=console", "PATH=/bin", "AGENTCTL_LOG_FORMAT=text"}, overrides...)
 	joined := strings.Join(env, "\n")
-	if strings.Count(joined, "AGENTCTL_LOG_FORMAT=") != 1 || !strings.Contains(joined, "AGENTCTL_LOG_FORMAT=console") {
-		t.Fatalf("managed child log format = %v, want a single pinned console override", env)
+	if strings.Count(joined, "AGENTCTL_LOG_FORMAT=") != 1 || !strings.Contains(joined, "AGENTCTL_LOG_FORMAT=json") {
+		t.Fatalf("managed child log format = %v, want a single pinned JSON override", env)
 	}
 }
 

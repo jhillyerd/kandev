@@ -360,10 +360,9 @@ func (l *Launcher) childEnvOverrides(nonce string) ([]string, error) {
 	overrides := []string{
 		"AGENTCTL_BOOTSTRAP_NONCE=" + nonce,
 		"AGENTCTL_LISTEN_HOST=" + l.host,
-		// The child's stdout feeds this launcher's relay, never a log
-		// collector, so the log format is the launcher's contract: pin the
-		// console format the relay parses and drop any inherited value.
-		"AGENTCTL_LOG_FORMAT=console",
+		// Managed records cross the relay's JSON envelope allowlist; keep
+		// that privacy boundary independent of inherited format settings.
+		"AGENTCTL_LOG_FORMAT=json",
 	}
 	if l.startupConfig.Configured {
 		encoded, err := commonconfig.EncodeAgentctlStartupConfig(l.startupConfig)

@@ -32,17 +32,14 @@ the child log format contract.
 A probe whose child dies before answering reported only "peer disconnected
 before response". The child's actual reason, such as an `npx` resolution
 failure, a missing runtime, or a panic, went to the void: the UI's "check agent
-logs" advice pointed at logs that never carried it. Separately, the agentctl
-child inherits its environment from the operator's shell, so an ambient
-`AGENTCTL_LOG_FORMAT` value could switch the child's stdout to a format the
-launcher relay does not parse, silently breaking lifecycle record ingestion.
+logs" advice pointed at logs that never carried it. The launcher also needs a fixed child format:
+console records bypass the
+JSON relay's intentional structured-field privacy projection, while a JSON
+record drops context fields that are not in its trusted envelope.
 
-Root causes:
-
-- The probe executor discarded child stderr instead of capturing a bounded
-  tail for the failure log.
-- The launcher did not own the child's log format even though the child's
-  stdout feeds the launcher's relay.
+The repair pins JSON and puts only approved, sanitized probe diagnostics in
+the message retained by that projection. Raw evidence remains local to
+classification; unrelated child structured fields remain excluded.
 
 The relay's parsing of agentctl JSON log records landed separately upstream
 (#4223, #4263) and needed no change.
@@ -62,14 +59,17 @@ UI change, so no rendered checks apply. Commands:
 
 ```bash
 cd apps/backend
-go test ./internal/agent/runtime/agentctl/launcher/ -run TestChildEnvOverridesPinRelayParseableLogFormat -count=1
-go test ./internal/agentctl/server/utility/ -run 'ProbeFailureLog|CarriesScrubbedStderr' -count=1
+go test -race -trimpath ./internal/agent/runtime/agentctl/launcher/ -run TestChildEnvOverridesPinRelayParseableLogFormat -count=1
+go test -race -trimpath ./internal/agentctl/server/utility/ -run 'ProbeFailureLog|ProbeModelDiscoveryFailureLog|CarriesScrubbedStderr|StderrBuffer' -count=1
 ```
 
 ## Risks and exclusions
 
 - Log sanitization must not destroy the diagnostic text the log exists for:
-  the credential-only redaction tier is chosen for that reason.
+  the provider-diagnostic redaction tier preserves error codes and ordinary
+  failure descriptions while masking opaque credentials and private paths.
+- Managed child records must use the JSON envelope allowlist. Sanitized probe
+  details belong in the message retained by that projection.
 - Client responses stay sanitized; no subprocess detail crosses the client
   boundary.
 - Out of scope: the relay's record parsing (upstream), client-visible probe
@@ -77,5 +77,11 @@ go test ./internal/agentctl/server/utility/ -run 'ProbeFailureLog|CarriesScrubbe
 
 ## Results
 
-Both work orders are complete and merged in this pull request. The
-documentation coverage check is satisfied by this package.
+The original work orders are implemented. Review remediation extends provider
+diagnostic redaction to opaque credentials, private URLs and paths, structured
+protocol errors, and secondary model-discovery errors. A truncated first line
+is excluded from log output while the raw bounded tail still drives failure
+classification. The managed format is pinned to JSON, sanitized diagnostics
+survive in the message, and shared sanitizer ownership moves to
+`common/securityutil` with existing runtime APIs retained. Hosted RED assertions and final hosted verification are
+tracked in PR evidence; no local contributor execution is used.

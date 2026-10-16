@@ -2,7 +2,7 @@
 status: active
 system: agents
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-16
 owners:
   - kandev
 ---
@@ -38,18 +38,23 @@ can fix the agent configuration without rerunning the probe by hand.
   profile-context probe fails before completing its protocol exchange, the
   backend log entry for that failure shall carry the child process's trailing
   stderr output and the failure cause, so the child-side reason is available
-  wherever the failure is observed.
-- **AC-AGENTS-PROBE-FAILURE-DIAGNOSTICS-001.2:** Probe stderr written to the
-  backend log shall have temporary filesystem paths replaced and
-  credential-shaped values masked, while non-credential diagnostic text remains
-  intact.
+  wherever the failure is observed. Sanitized diagnostics shall remain visible
+  after the launcher relay projects the child log record.
+- **AC-AGENTS-PROBE-FAILURE-DIAGNOSTICS-001.2:** Probe stderr and provider-supplied errors written to the
+  backend log shall mask likely credentials, including opaque token-shaped
+  values, and remove private URL details and local filesystem paths. Error
+  codes and ordinary diagnostic text shall remain useful. Direct probe error
+  responses shall use the same redaction; profile responses keep their generic
+  message and code.
 - **AC-AGENTS-PROBE-FAILURE-DIAGNOSTICS-001.3:** A profile-context probe
   failure response shall keep its sanitized client message and failure code,
   while the backend log entry additionally retains the pre-sanitization
   managed-runtime failure classification.
 - **AC-AGENTS-PROBE-FAILURE-DIAGNOSTICS-001.4:** Captured probe stderr shall be
   bounded to a trailing window, so a chatty or looping child process cannot
-  grow the captured output or the resulting log entry without bound.
+  grow the captured output or the resulting log entry without bound. A line
+  whose beginning was discarded shall not be logged, because truncation can
+  separate a credential from the marker that identifies it.
 
 ### REQ-AGENTS-PROBE-FAILURE-DIAGNOSTICS-002: Agentctl child log format stays launcher-owned
 
@@ -64,6 +69,10 @@ value must not be able to change that format and break record ingestion.
   format its stdout relay parses, overriding any inherited value of that format
   variable, so the operator's ambient environment cannot break lifecycle
   record ingestion.
+- **AC-AGENTS-PROBE-FAILURE-DIAGNOSTICS-002.2:** The managed child format
+  shall preserve the relay's JSON envelope allowlist, so unrelated structured
+  fields such as session identifiers, workspace paths and command arguments do
+  not reach backend logs.
 
 ## Exclusions
 

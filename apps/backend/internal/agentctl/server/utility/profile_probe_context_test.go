@@ -129,7 +129,7 @@ exit 1
 		t.Fatalf("client failure code = %q, want the sanitized empty code", response.FailureCode)
 	}
 
-	entries := observed.FilterMessage("ACP profile probe failed").All()
+	entries := observed.FilterMessageSnippet("ACP profile probe failed").All()
 	if len(entries) != 1 {
 		t.Fatalf("profile probe failure entries = %d, want 1: %#v", len(entries), observed.All())
 	}
@@ -186,7 +186,7 @@ exit 1
 		t.Fatal("Probe unexpectedly succeeded")
 	}
 
-	entries := observed.FilterMessage("ACP profile probe failed").All()
+	entries := observed.FilterMessageSnippet("ACP profile probe failed").All()
 	if len(entries) != 1 {
 		t.Fatalf("profile probe failure entries = %d, want 1: %#v", len(entries), observed.All())
 	}
@@ -236,7 +236,7 @@ exit 1
 		t.Fatal("Probe unexpectedly succeeded")
 	}
 
-	entries := observed.FilterMessage("ACP probe failed").All()
+	entries := observed.FilterMessageSnippet("ACP probe failed").All()
 	if len(entries) != 1 {
 		t.Fatalf("probe failure entries = %d, want 1: %#v", len(entries), observed.All())
 	}

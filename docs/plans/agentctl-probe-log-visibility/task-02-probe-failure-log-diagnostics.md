@@ -30,10 +30,18 @@ sanitized.
 - Capture the child's stderr in the trailing-window `stderrBuffer`
   (4 KiB retention) during probes.
 - On failure, log the tail at both failure sites (`ACP probe failed`,
-  `ACP profile probe failed`) through `probeStderrForLog`
-  (`routingerr.SanitizeCredentials` composed with `scrubTmpPaths`), so
-  credential-shaped values are masked and tmp paths replaced while diagnostic
-  text stays intact.
+  `ACP profile probe failed`) through `sanitizeProbeDiagnostic`
+  (`scrubTmpPaths` followed by `securityutil.Sanitize`), so
+  likely credentials and private URL/path details are masked while ordinary
+  diagnostic text stays intact. Discard a truncated first line before logging,
+  retaining the raw bounded tail for classification.
+- Sanitize direct protocol error fields and response errors, and secondary
+  model-discovery errors, at the same provider-diagnostic boundary.
+- Include the sanitized underlying error, stderr and managed classification in
+  the message so they survive the relay's JSON envelope projection, while
+  unrelated structured fields remain excluded.
+- Extract the existing sanitizer and its tests into shared
+  `common/securityutil`, retaining the runtime routing facade.
 - In profile context, additionally log the pre-sanitization managed-runtime
   classification as `managed_failure_code` alongside the client-visible code.
 - Regression tests for the scrubbed tail, the credential masking (both
@@ -54,17 +62,20 @@ sanitized.
 
 1. A profile probe failure log entry carries the npm/child cause with tmp
    paths scrubbed and the managed failure code, while the client response
-   keeps the sanitized message and empty code.
+   keeps the sanitized message and empty code. Without stderr, the sanitized
+   protocol error still provides a cause.
 2. Credential-shaped values in child stderr (token prefixes, Bearer
    challenges, credential assignments) are masked in both failure logs, and
-   the diagnostic text around them survives.
+   the diagnostic text around them survives. Opaque token-shaped values,
+   URL account/query content, local paths and marker-less truncated credential
+   suffixes must not escape through stderr or structured error fields.
 3. The captured tail never exceeds the trailing window.
 
 ## Verification commands
 
 ```bash
 cd apps/backend
-go test ./internal/agentctl/server/utility/ -run 'ProbeFailureLog|CarriesScrubbedStderr|MasksCredentialShapedStderr' -count=1
+go test -race -trimpath ./internal/agentctl/server/utility/ -run 'ProbeFailureLog|ProbeModelDiscoveryFailureLog|CarriesScrubbedStderr|StderrBuffer' -count=1
 ```
 
 ## Likely files
@@ -72,11 +83,17 @@ go test ./internal/agentctl/server/utility/ -run 'ProbeFailureLog|CarriesScrubbe
 - `apps/backend/internal/agentctl/server/utility/acp_executor.go`
 - `apps/backend/internal/agentctl/server/utility/profile_probe_context_test.go`
 - `apps/backend/internal/agentctl/server/utility/acp_executor_test.go`
+- `apps/backend/internal/agentctl/server/utility/probe_failure_privacy_test.go`
+- `apps/backend/internal/agentctl/server/utility/probe_failure_log.go`
+- `apps/backend/internal/common/securityutil/sanitize.go` and its existing tests
+- `apps/backend/internal/agent/runtime/routingerr/sanitize.go` (compatibility facade)
 
 ## Results
 
 Implemented across commits `7f16a1cd8` (scrubbed tail and managed failure
 code) and `09a0eca40` (credential masking at both log sites, from PR review).
-The bounded stderr capture and its tests already existed in the probe
-executor. All listed tests pass; the utility package is green apart from two
-pre-existing NixOS-environment failures confirmed identical at baseline.
+The bounded stderr capture and its original tests already existed. Review
+remediation adds provider-diagnostic redaction, safe handling of a truncated
+first line, and protocol/secondary-error coverage. The original author's
+reported environment failures are historical claims, not current verification.
+Hosted RED assertions and final hosted results are retained in PR evidence.
