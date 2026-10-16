@@ -75,6 +75,7 @@ sanitized.
 
 ```bash
 cd apps/backend
+go test -race -trimpath ./internal/common/securityutil/ ./internal/agent/runtime/routingerr/ -count=1
 go test -race -trimpath ./internal/agentctl/server/utility/ -run 'ProbeFailureLog|ProbeModelDiscoveryFailureLog|CarriesScrubbedStderr|StderrBuffer' -count=1
 ```
 

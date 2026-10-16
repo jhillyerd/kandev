@@ -60,6 +60,7 @@ UI change, so no rendered checks apply. Commands:
 ```bash
 cd apps/backend
 go test -race -trimpath ./internal/agent/runtime/agentctl/launcher/ -run TestChildEnvOverridesPinRelayParseableLogFormat -count=1
+go test -race -trimpath ./internal/common/securityutil/ ./internal/agent/runtime/routingerr/ -count=1
 go test -race -trimpath ./internal/agentctl/server/utility/ -run 'ProbeFailureLog|ProbeModelDiscoveryFailureLog|CarriesScrubbedStderr|StderrBuffer' -count=1
 ```
 
