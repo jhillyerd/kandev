@@ -86,3 +86,21 @@ jobs:
             --provenance=false \
             --sbom=false \
             ./ctx
+
+      # Universal image: same base plus pinned language toolchains. The
+      # vanilla :main tag was pushed seconds ago in this same job; the
+      # release workflow uses the same tag-based handoff.
+      - name: Build and push universal image
+        run: |
+          set -euo pipefail
+          short_sha="$(git rev-parse --short HEAD)"
+          docker buildx build \
+            --file ./Dockerfile.universal \
+            --platform linux/amd64 \
+            --push \
+            --build-arg BASE_IMAGE="ghcr.io/${{ github.repository_owner }}/kandev:main" \
+            --tag "ghcr.io/${{ github.repository_owner }}/kandev:main-universal" \
+            --tag "ghcr.io/${{ github.repository_owner }}/kandev:sha-${short_sha}-universal" \
+            --provenance=false \
+            --sbom=false \
+            .
