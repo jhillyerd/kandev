@@ -1,20 +1,21 @@
 name: fork-docker
 
 # Fork-only workflow: build and publish a linux/amd64 container image from
-# the current main (which tracks upstream kdlbs/kandev). Mirrors the release
-# workflow's build-bundles linux-x64 job and docker-amd64 context staging,
-# minus the release machinery (version bump, npm, Homebrew, Scoop, SignPath)
-# that needs upstream-only secrets. Uses only stock repository targets, so
-# syncing this fork from upstream never conflicts with this file.
+# the docker-ci branch, which is upstream kdlbs/kandev main plus this file.
+# The workflow deliberately lives only on that branch: push events run the
+# workflow file at the pushed ref, so the fork's main stays pristine and
+# fast-forwardable against upstream. To pick up upstream changes, rebase
+# docker-ci onto origin/main and force-push; the push itself triggers the
+# build. (schedule and workflow_dispatch would require this file on main.)
+# Mirrors the release workflow's build-bundles linux-x64 job and docker-amd64
+# context staging, minus the release machinery (version bump, npm, Homebrew,
+# Scoop, SignPath) that needs upstream-only secrets. Uses only stock
+# repository targets, so syncing this fork from upstream never conflicts
+# with this file.
 
 on:
-  workflow_dispatch:
   push:
-    branches: [main]
-  schedule:
-    # Daily, in case main advances through the GitHub "Sync fork" button,
-    # which does not always produce a push event this workflow can see.
-    - cron: "23 4 * * *"
+    branches: [docker-ci]
 
 concurrency:
   group: fork-docker-${{ github.ref }}
@@ -26,7 +27,7 @@ permissions:
 
 jobs:
   docker-amd64:
-    name: Build and push image (amd64, from main)
+    name: Build and push image (amd64, from docker-ci)
     # kandev links cgo SQLite, so the binary carries the build host's glibc.
     # ubuntu-22.04 ships glibc 2.35, compatible with the debian:bookworm
     # runtime image (glibc 2.36) - the same pairing the release workflow uses.
@@ -74,6 +75,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
+        # The :main tag stays consumer-facing; docker-ci is upstream main
+        # plus this workflow, so the name still describes the content.
         run: |
           set -euo pipefail
           short_sha="$(git rev-parse --short HEAD)"
